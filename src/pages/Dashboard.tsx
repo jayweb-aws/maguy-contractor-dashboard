@@ -105,7 +105,7 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid min-w-0 gap-4 xl:grid-cols-3 [&>*]:min-w-0">
         {/* Pending rides */}
         <SectionCard
           className="xl:col-span-2"
@@ -213,7 +213,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid min-w-0 gap-4 xl:grid-cols-3 [&>*]:min-w-0">
         {/* Today's schedule */}
         <SectionCard
           className="xl:col-span-2"

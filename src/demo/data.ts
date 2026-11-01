@@ -543,7 +543,7 @@ export const PAY_PERIODS: PayPeriod[] = [
 ];
 
 export const NOTIFICATIONS: AppNotification[] = [
-  { id: 'n_01', type: 'ride', title: 'New ride assigned', body: 'MGY-248103 · Stretcher · Mon 1:00 PM — respond by 12:00 PM today.', at: `${d(-1)}T16:13:00`, read: false, rideId: 'ride_03' },
+  { id: 'n_01', type: 'ride', title: 'New ride assigned', body: 'MGY-248103 · Stretcher · Wed 1:00 PM — respond by 12:00 PM today.', at: `${d(-1)}T16:13:00`, read: false, rideId: 'ride_03' },
   { id: 'n_02', type: 'ride', title: 'New ride assigned', body: 'MGY-248101 · Wheelchair · Tue 8:15 AM — respond by 9:00 AM today.', at: `${d(-1)}T16:11:00`, read: false, rideId: 'ride_01' },
   { id: 'n_03', type: 'ride', title: 'New ride assigned', body: 'MGY-248102 · Round trip · Tue 10:30 AM — respond by 10:00 AM today.', at: `${d(-1)}T16:12:00`, read: false, rideId: 'ride_02' },
   { id: 'n_04', type: 'compliance', title: 'PASS certification expired', body: 'Tomas Lindqvist cannot be assigned until a new certificate is uploaded.', at: `${d(-6)}T06:00:00`, read: false },

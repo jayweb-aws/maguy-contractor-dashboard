@@ -42,7 +42,7 @@ export default function PayPeriods() {
         </DemoNote>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-3">
+      <div className="mt-4 grid min-w-0 gap-4 xl:grid-cols-3 [&>*]:min-w-0">
         <SectionCard title="Payable by period" className="xl:col-span-1" bodyClassName="p-2 lg:p-3">
           <div className="h-56 w-full">
             <ResponsiveContainer width="100%" height="100%">

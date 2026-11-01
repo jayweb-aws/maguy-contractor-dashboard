@@ -21,7 +21,7 @@ export default function Profile() {
           </Button>
         }
       />
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-3 [&>*]:min-w-0">
         <SectionCard title="Business information" className="xl:col-span-2">
           <div className="grid gap-4 sm:grid-cols-2">
             <KeyValue label="Business name" value={contractor.businessName} />
