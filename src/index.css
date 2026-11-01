@@ -1,0 +1,121 @@
+/* Design tokens copied from Medtransport/src/index.css so the contractor
+   portal renders with the same palette, radius, fonts and dashboard chrome. */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0, 0%, 100%;
+    --foreground: 0 0% 10%;
+    --card: 0, 0%, 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 217 100% 50%;
+    --primary-muted: 218 100% 98%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 0, 0%, 98%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --success: 136 53% 43%;
+    --warning: 45 95% 61%;
+    --sidebarGray: 0 0% 42%;
+    --tableHeader: 220, 100%, 99%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 5 79% 56%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 0, 0%, 93%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+    --primary-blue: 217 100% 50%;
+    --primary-black: 214 12% 11%;
+    --primary-gray: 224 10% 54%;
+    --primary-yellow: 45 95% 61%;
+    --neutral-gray: 240 5% 59%;
+    --primary-white: 0 0% 100%;
+    --primary-red: 5 79% 56%;
+    --primary-green: 152 82% 39%;
+    --heading-black: 214 12% 11%;
+    --stroke: 217 35% 93%;
+    --primary-hover-menu: 219 100% 97%;
+    --bodyGray: 0 0% 42%;
+
+    --chart-medicaid: 217 100% 50%;
+    --chart-institution: 156 64% 54%;
+    --chart-brokerage: 5 79% 56%;
+    --chart-privatePay: 0 0% 65%;
+    --chart-thirdParty: 45 95% 61%;
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background font-poppins text-foreground;
+    margin: 0;
+  }
+
+  .text-general {
+    @apply text-xs md:text-sm;
+  }
+
+  @layer components {
+    .page-title {
+      @apply text-xl font-medium md:text-2xl md:text-[30px];
+    }
+    .flex-center {
+      @apply flex items-center justify-center;
+    }
+    .flex-between {
+      @apply flex items-center justify-between;
+    }
+    .card-title {
+      @apply text-base font-medium md:text-xl;
+    }
+    .card-title__sm {
+      @apply text-lg font-semibold leading-[31.5px];
+    }
+    .card-shadow {
+      box-shadow: 0px 0px 10px 0px rgba(33, 40, 50, 0.15);
+    }
+  }
+
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+  }
+
+  /* Dashboard shell — same widths as Medtransport (260px open / 90px rail) */
+  .dashboard-sidebar {
+    @apply w-[260px];
+  }
+  .dashboard-sidebar.hide {
+    @apply -translate-x-full lg:w-[90px] lg:translate-x-0 lg:hover:w-[260px];
+  }
+  .dashboard-sidebar.hide li span {
+    @apply lg:hidden;
+  }
+  .dashboard-sidebar.hide:hover span {
+    @apply lg:block;
+  }
+  .dashboard-sidebar.hide li svg {
+    @apply lg:flex-grow;
+  }
+  .dashboard-sidebar.hide:hover svg {
+    @apply lg:flex-grow-[0];
+  }
+  .dashboard-body {
+    @apply lg:ml-[260px] lg:w-[calc(100%-260px)];
+  }
+  .dashboard-body.active {
+    @apply lg:ml-[90px] lg:w-[calc(100%-90px)];
+  }
+}
