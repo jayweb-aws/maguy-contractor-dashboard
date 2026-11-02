@@ -2,7 +2,7 @@
    next occurrences (with a link to the ride once Maguy materialises one). */
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, MapPin, Phone, Repeat, X } from 'lucide-react';
+import { Check, ExternalLink, MapPin, Pencil, Phone, Repeat, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -104,6 +104,20 @@ export function RecurringDetailsSheet({
                 <Repeat className="h-3.5 w-3.5" /> {formatRecurrence(series.days, series.pickupTime)} ·{' '}
                 {formatDateLong(series.startDate)} → {formatDateLong(series.endDate)}
               </SheetDescription>
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" asChild onClick={() => onOpenChange(false)}>
+                  <Link to={`/schedules/recurring-rides/${series.id}`}>
+                    <ExternalLink className="h-3.5 w-3.5" /> Open full view
+                  </Link>
+                </Button>
+                {canAssignRecurringDriver(series) && (
+                  <Button variant="outline-primary" asChild onClick={() => onOpenChange(false)}>
+                    <Link to={`/schedules/recurring-rides/${series.id}/edit`}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </SheetHeader>
 
             <div className="mt-5 space-y-5 text-sm">

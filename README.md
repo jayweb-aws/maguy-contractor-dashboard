@@ -24,6 +24,21 @@ Mock data only. No backend, no real patients, drivers, accounts or amounts.
 | Notifications | Ride / compliance / pay / system | Mark read (one, checked or all), deep-link to ride / request |
 | Profile | Business info as held by Maguy HR, dispatch preferences, portal users | — |
 
+**Drill-down pages** (Medtransport's view / edit chrome in `src/components/pages.tsx`: sticky form
+navbar with back arrow + Cancel / Save, left section nav, label / value blocks):
+
+| Record | View | Edit |
+| --- | --- | --- |
+| Ride | `/schedules/rides/:id` — contractor + billing account header, patient, appointment, pickup & destination, driver & vehicle, billing, timeline, notes | `/schedules/rides/:id/edit` — Driver & Vehicle, Trip Information (odometer, actual times), Ride Status (forward-only progress), Notes to Dispatch |
+| Recurring series | `/schedules/recurring-rides/:id` + upcoming occurrences | `/schedules/recurring-rides/:id/edit` — default driver / vehicle, standing instructions |
+| Driver | `/drivers/:id` — personal, contact, work info, compliance, rides | `/drivers/:id/edit` |
+| Vehicle | `/vehicles/:id` | `/vehicles/:id/edit`, `/vehicles/new` |
+| Document | `/documents/:id` — preview placeholder, details, history | upload / replace from the page |
+| Agreement | `/contracts/:id` — terms, parties, signature block | — |
+| Pay period | `/pay-periods/:id` — statement totals + every completed ride in the period | — |
+
+Patient, appointment, recurrence and billing fields are read-only everywhere: they belong to Maguy dispatch.
+
 Every table is the same `DataTable` (`src/components/table/`): select-all / per-row checkboxes,
 a bulk-action bar while rows are checked, a three-dot action menu on every row
 (`TableActionDropdown`, ported from Medtransport), and the Medtransport pagination footer with

@@ -1,5 +1,7 @@
 /* Right-hand drawer with the full ride record, mirroring the dispatch "View" panel. */
-import { Clock, MapPin, Phone } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Clock, ExternalLink, MapPin, Pencil, Phone } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
   Sheet,
@@ -11,7 +13,7 @@ import {
 import { KeyValue, RideStatusBadge, formatDate, formatDateTime } from '@/components/shared';
 import { AssignDriverSelect, RideRowActions } from '@/components/ride-actions';
 import { useDemo } from '@/demo/store';
-import { canAssignDriver, formatMoney, formatTime12, fullName } from '@/demo/logic';
+import { canAssignDriver, canEditRide, formatMoney, formatTime12, fullName } from '@/demo/logic';
 
 export function RideDetailsSheet({
   rideId,
@@ -39,6 +41,20 @@ export function RideDetailsSheet({
                 {formatDate(ride.date)} · Pickup {formatTime12(ride.pickupTime)}
                 {ride.appointmentTime && ` · Appt ${formatTime12(ride.appointmentTime)}`}
               </SheetDescription>
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" size="default" asChild onClick={() => onOpenChange(false)}>
+                  <Link to={`/schedules/rides/${ride.id}`}>
+                    <ExternalLink className="h-3.5 w-3.5" /> Open full view
+                  </Link>
+                </Button>
+                {canEditRide(ride) && (
+                  <Button variant="outline-primary" size="default" asChild onClick={() => onOpenChange(false)}>
+                    <Link to={`/schedules/rides/${ride.id}/edit`}>
+                      <Pencil className="h-3.5 w-3.5" /> Edit
+                    </Link>
+                  </Button>
+                )}
+              </div>
             </SheetHeader>
 
             <div className="mt-5 space-y-5 text-sm">

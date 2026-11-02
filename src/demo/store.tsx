@@ -70,6 +70,13 @@ interface DemoState {
   acceptRecurring: (id: string) => void;
   rejectRecurring: (id: string, reason: string) => void;
   assignRecurringDriver: (id: string, driverId: string | null) => void;
+  updateRecurring: (id: string, patch: Partial<Pick<RecurringRide, 'driverId' | 'vehicleId' | 'notes'>>) => void;
+  /* edit pages */
+  updateRide: (id: string, patch: Partial<L.RideEditable>) => boolean;
+  setRideStatus: (id: string, status: Ride['status']) => void;
+  updateDriver: (id: string, patch: Partial<Omit<Driver, 'id' | 'compliance'>>) => void;
+  updateVehicle: (id: string, patch: Partial<Omit<Vehicle, 'id'>>) => void;
+  addVehicle: (input: Omit<Vehicle, 'id'>) => Vehicle;
   /* drivers */
   addDriver: (input: NewDriverInput) => Driver;
   setDriverStatus: (driverId: string, status: Driver['status']) => void;
@@ -87,11 +94,12 @@ const Ctx = createContext<DemoState | null>(null);
 
 /* Demo state survives a reload within the tab (sessionStorage) so a reviewer can refresh
    or deep-link without losing what they just did. "Reset demo data" clears it. */
-const STORAGE_KEY = 'maguy-contractor-demo-v2';
+const STORAGE_KEY = 'maguy-contractor-demo-v3';
 interface Persisted {
   rides: Ride[];
   recurring: RecurringRide[];
   drivers: Driver[];
+  vehicles: Vehicle[];
   documents: Document[];
   notifications: AppNotification[];
 }
@@ -116,13 +124,13 @@ export function DemoProvider({ children }: { children: ReactNode }) {
   const [rides, setRides] = useState<Ride[]>(persisted?.rides ?? RIDES);
   const [recurring, setRecurring] = useState<RecurringRide[]>(persisted?.recurring ?? RECURRING);
   const [drivers, setDrivers] = useState<Driver[]>(persisted?.drivers ?? DRIVERS);
-  const [vehicles] = useState<Vehicle[]>(VEHICLES);
+  const [vehicles, setVehicles] = useState<Vehicle[]>(persisted?.vehicles ?? VEHICLES);
   const [documents, setDocuments] = useState<Document[]>(persisted?.documents ?? DOCUMENTS);
   const [notifications, setNotifications] = useState<AppNotification[]>(persisted?.notifications ?? NOTIFICATIONS);
 
   useEffect(() => {
-    savePersisted({ rides, recurring, drivers, documents, notifications });
-  }, [rides, recurring, drivers, documents, notifications]);
+    savePersisted({ rides, recurring, drivers, vehicles, documents, notifications });
+  }, [rides, recurring, drivers, vehicles, documents, notifications]);
 
   const driverById = useCallback((id?: string) => drivers.find((d) => d.id === id), [drivers]);
   const vehicleById = useCallback((id?: string) => vehicles.find((v) => v.id === id), [vehicles]);
@@ -289,6 +297,85 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     [drivers, recurring],
   );
 
+  const updateRecurring = useCallback(
+    (id: string, patch: Partial<Pick<RecurringRide, 'driverId' | 'vehicleId' | 'notes'>>) => {
+      if (patch.driverId) {
+        const d = drivers.find((x) => x.id === patch.driverId);
+        if (d && !L.driverCanBeAssigned(d)) {
+          toast.error(`${L.fullName(d)} has an expired compliance item and cannot be assigned.`);
+          return;
+        }
+      }
+      setRecurring((prev) =>
+        prev.map((s) => {
+          if (s.id !== id) return s;
+          let next = { ...s, ...('notes' in patch ? { notes: patch.notes } : {}) };
+          if ('driverId' in patch) {
+            const d = drivers.find((x) => x.id === patch.driverId);
+            next = d ? L.assignRecurringDriver(next, d) : L.unassignRecurringDriver(next);
+          }
+          if ('vehicleId' in patch && next.driverId) next.vehicleId = patch.vehicleId || undefined;
+          return next;
+        }),
+      );
+      toast.success('Recurring ride updated');
+    },
+    [drivers],
+  );
+
+  /* ---- edit pages ---- */
+  const updateRide = useCallback(
+    (id: string, patch: Partial<L.RideEditable>): boolean => {
+      const ride = rides.find((r) => r.id === id);
+      if (!ride) return false;
+      if (!L.canEditRide(ride)) {
+        toast.error('A rejected or cancelled ride cannot be edited.');
+        return false;
+      }
+      if (patch.driverId) {
+        const d = drivers.find((x) => x.id === patch.driverId);
+        if (d && !L.driverCanBeAssigned(d)) {
+          toast.error(`${L.fullName(d)} has an expired compliance item and cannot be assigned.`);
+          return false;
+        }
+      }
+      setRides((prev) => prev.map((r) => (r.id === id ? L.applyRideEdit(r, patch, drivers) : r)));
+      toast.success(`Ride ${ride.rideNo} updated`);
+      return true;
+    },
+    [rides, drivers],
+  );
+
+  const setRideStatusAction = useCallback(
+    (id: string, status: Ride['status']) => {
+      const ride = rides.find((r) => r.id === id);
+      if (!ride || !L.canSetStatus(ride, status)) {
+        toast.error('That status change is not allowed from the ride’s current state.');
+        return;
+      }
+      setRides((prev) => prev.map((r) => (r.id === id ? L.setRideStatus(r, status, NOW_ISO.slice(11, 16), NOW_ISO) : r)));
+      toast.success(`${ride.rideNo} marked ${L.RIDE_STATUS_LABEL[status]}`);
+    },
+    [rides],
+  );
+
+  const updateDriver = useCallback((id: string, patch: Partial<Omit<Driver, 'id' | 'compliance'>>) => {
+    setDrivers((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+    toast.success('Driver updated');
+  }, []);
+
+  const updateVehicle = useCallback((id: string, patch: Partial<Omit<Vehicle, 'id'>>) => {
+    setVehicles((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
+    toast.success('Vehicle updated');
+  }, []);
+
+  const addVehicle = useCallback((input: Omit<Vehicle, 'id'>): Vehicle => {
+    const vehicle: Vehicle = { ...input, id: `veh_${Date.now()}` };
+    setVehicles((prev) => [...prev, vehicle]);
+    toast.success(`${vehicle.name} added`, { description: 'Upload its inspection and insurance under Compliance & Documents.' });
+    return vehicle;
+  }, []);
+
   const addDriver = useCallback(
     (input: NewDriverInput): Driver => {
       const n = drivers.length + 1;
@@ -384,6 +471,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     setRides(RIDES);
     setRecurring(RECURRING);
     setDrivers(DRIVERS);
+    setVehicles(VEHICLES);
     setDocuments(DOCUMENTS);
     setNotifications(NOTIFICATIONS);
     toast('Demo data reset');
@@ -418,6 +506,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       acceptRecurring,
       rejectRecurring,
       assignRecurringDriver,
+      updateRecurring,
+      updateRide,
+      setRideStatus: setRideStatusAction,
+      updateDriver,
+      updateVehicle,
+      addVehicle,
       addDriver,
       setDriverStatus,
       markRead,
@@ -449,6 +543,12 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       acceptRecurring,
       rejectRecurring,
       assignRecurringDriver,
+      updateRecurring,
+      updateRide,
+      setRideStatusAction,
+      updateDriver,
+      updateVehicle,
+      addVehicle,
       addDriver,
       setDriverStatus,
       markRead,

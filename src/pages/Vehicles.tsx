@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ const STATUS: Record<Vehicle['status'], { label: string; variant: 'greenish' | '
 
 export default function Vehicles() {
   const { vehicles, driverById, today } = useDemo();
+  const navigate = useNavigate();
   const [filters, setFilters] = useState<{ search?: string; ownership?: string; status?: string; type?: string }>({});
   const table = useTableState(10);
   const overdue = vehicles.filter((v) => v.inspectionDue < today).length;
@@ -54,7 +56,15 @@ export default function Vehicles() {
     }));
 
   const columns: Column<Vehicle>[] = [
-    { id: 'name', header: 'Vehicle', className: 'font-medium text-headingBlack', cell: (v) => v.name },
+    {
+      id: 'name',
+      header: 'Vehicle',
+      cell: (v) => (
+        <Link to={`/vehicles/${v.id}`} className="font-medium text-primary hover:underline">
+          {v.name}
+        </Link>
+      ),
+    },
     { id: 'plate', header: 'Plate', cell: (v) => v.plate },
     { id: 'type', header: 'Type', cell: (v) => v.type },
     { id: 'capacity', header: 'Capacity', className: 'text-primaryGray', cell: (v) => v.capacity },
@@ -101,8 +111,8 @@ export default function Vehicles() {
         title="Vehicles"
         description="Vehicles your drivers operate. Ownership determines who carries insurance and maintenance."
         actions={
-          <Button variant="bluish" size="boosted" onClick={() => stub('Add vehicle')}>
-            Add Vehicle
+          <Button variant="bluish" size="boosted" asChild>
+            <Link to="/vehicles/new">Add Vehicle</Link>
           </Button>
         }
       />
@@ -141,10 +151,11 @@ export default function Vehicles() {
           rows={rows}
           rowKey={(v) => v.id}
           table={table}
+          onRowClick={(v) => navigate(`/vehicles/${v.id}`)}
           actions={(v) => (
             <>
-              <TableActionDropdownItem label="View" onSelect={() => stub(`Vehicle ${v.plate} details`)} />
-              <TableActionDropdownItem label="Edit" onSelect={() => stub('Edit vehicle')} />
+              <TableActionDropdownItem label="View" link={`/vehicles/${v.id}`} />
+              <TableActionDropdownItem label="Edit" link={`/vehicles/${v.id}/edit`} />
               <TableActionDropdownItem label="Documents" displayLabel="Inspection & Insurance" link="/documents?tab=company" />
             </>
           )}

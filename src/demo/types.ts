@@ -48,6 +48,12 @@ export interface Ride {
   actualDropoffTime?: string;
   /** set when the ride is one occurrence of a recurring series */
   recurringId?: string;
+  /* contractor-editable execution details (Medtransport "Clarifying information" / trip info) */
+  pickupMileage?: number;
+  dropMileage?: number;
+  needTwoMan?: boolean;
+  escortName?: string;
+  notes?: string; // contractor's note to Maguy dispatch
 }
 
 /* ---------- recurring rides (Medtransport "Recurring Ride Request" → "Approved Recurring Rides") ---------- */
@@ -91,6 +97,7 @@ export interface RecurringRide {
   acceptedAt?: string;
   rejectReason?: string;
   rejectedAt?: string;
+  notes?: string; // contractor's standing instructions for the series
 }
 
 /** One generated date of a recurring series (not stored — derived for calendar / schedule views). */
@@ -149,6 +156,8 @@ export interface Vehicle {
   inspectionDue: string;
   insuranceExpires: string;
   driverId?: string;
+  vin?: string;
+  notes?: string;
 }
 
 export interface Document {

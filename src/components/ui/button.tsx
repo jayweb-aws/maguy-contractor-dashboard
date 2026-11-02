@@ -87,6 +87,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           disabled ? 'pointer-events-none cursor-not-allowed  opacity-50' : '',
         )}
         ref={ref}
+        disabled={disabled || isLoading}
+        aria-disabled={disabled || isLoading || undefined}
         {...props}
       >
         {isLoading ? (

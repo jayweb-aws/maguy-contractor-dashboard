@@ -1,5 +1,6 @@
 /* My Drivers — Medtransport contractor "employees" table plus Add Driver and a detail drawer. */
 import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -16,24 +17,13 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
-import { Switch } from '@/components/ui/switch';
-import {
-  ComplianceBadge,
-  EmptyState,
-  KeyValue,
-  PageHeader,
-  RideStatusBadge,
-  StatCard,
-  formatDate,
-  formatDateLong,
-} from '@/components/shared';
+import { ComplianceBadge, EmptyState, PageHeader, StatCard, formatDateLong } from '@/components/shared';
 import { DataTable, useTableState, type Column } from '@/components/table/DataTable';
 import { ActiveFilters, FilterMenu, type FilterDef } from '@/components/table/FilterMenu';
 import { BulkActionBar } from '@/components/table/BulkActionBar';
 import { TableActionDropdownItem } from '@/components/table/TableActionDropdown';
 import { useDemo, type NewDriverInput } from '@/demo/store';
-import { ACTIVE_STATUSES, COMPLIANCE_LABEL, formatTime12, fullName, worstCompliance } from '@/demo/logic';
+import { ACTIVE_STATUSES, COMPLIANCE_LABEL, fullName, worstCompliance } from '@/demo/logic';
 import type { ComplianceState, Driver } from '@/demo/types';
 
 const STATUS_LABEL: Record<Driver['status'], string> = {
@@ -49,11 +39,10 @@ const STATUS_VARIANT: Record<Driver['status'], 'greenish' | 'grayish' | 'yellowi
 
 export default function Drivers() {
   const { drivers, rides, vehicles, vehicleById, today, addDriver, setDriverStatus } = useDemo();
+  const navigate = useNavigate();
   const [adding, setAdding] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
   const [filters, setFilters] = useState<{ search?: string; status?: string; compliance?: string }>({});
   const table = useTableState(10);
-  const driver = drivers.find((d) => d.id === selected);
 
   const active = drivers.filter((d) => d.status === 'active').length;
   const flagged = drivers.filter((d) => worstCompliance(d.compliance) !== 'valid').length;
@@ -99,9 +88,9 @@ export default function Drivers() {
       id: 'name',
       header: 'Employee Name',
       cell: (d) => (
-        <button className="font-medium text-primary hover:underline" onClick={() => setSelected(d.id)}>
+        <Link to={`/drivers/${d.id}`} className="font-medium text-primary hover:underline">
           {fullName(d)}
-        </button>
+        </Link>
       ),
     },
     { id: 'role', header: 'Role', cell: (d) => d.role },
@@ -179,10 +168,11 @@ export default function Drivers() {
           rows={rows}
           rowKey={(d) => d.id}
           table={table}
-          onRowClick={(d) => setSelected(d.id)}
+          onRowClick={(d) => navigate(`/drivers/${d.id}`)}
           actions={(d) => (
             <>
-              <TableActionDropdownItem label="View" onSelect={() => setTimeout(() => setSelected(d.id), 0)} />
+              <TableActionDropdownItem label="View" link={`/drivers/${d.id}`} />
+              <TableActionDropdownItem label="Edit" link={`/drivers/${d.id}/edit`} />
               <TableActionDropdownItem label="Documents" displayLabel="Compliance Documents" link="/documents?tab=driver" />
               {d.status === 'active' ? (
                 <TableActionDropdownItem label="Cancel" displayLabel="Set Inactive" onSelect={() => setDriverStatus(d.id, 'inactive')} />
@@ -196,81 +186,6 @@ export default function Drivers() {
       </Card>
 
       <AddDriverDialog open={adding} onOpenChange={setAdding} onSave={addDriver} vehicles={vehicles.filter((v) => !drivers.some((d) => d.vehicleId === v.id))} />
-
-      <Sheet open={!!driver} onOpenChange={(o) => !o && setSelected(null)}>
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
-          {driver && (
-            <>
-              <SheetHeader className="text-left">
-                <div className="flex items-center gap-3">
-                  <SheetTitle>{fullName(driver)}</SheetTitle>
-                  <Badge variant={STATUS_VARIANT[driver.status]}>{STATUS_LABEL[driver.status]}</Badge>
-                </div>
-                <SheetDescription>
-                  {driver.employeeId} · {driver.role} · hired {formatDateLong(driver.hireDate)}
-                </SheetDescription>
-              </SheetHeader>
-              <div className="mt-5 space-y-5 text-sm">
-                <div className="grid grid-cols-2 gap-3">
-                  <KeyValue label="Phone" value={driver.phone} />
-                  <KeyValue label="Email" value={<span className="break-all">{driver.email}</span>} />
-                  <KeyValue label="Vehicle" value={vehicleById(driver.vehicleId)?.name ?? <span className="text-primaryGray">Unassigned</span>} />
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-primaryGray">Active for dispatch</span>
-                    <div className="flex items-center gap-2">
-                      <Switch
-                        checked={driver.status === 'active'}
-                        onCheckedChange={(c) => setDriverStatus(driver.id, c ? 'active' : 'inactive')}
-                        aria-label="Toggle active"
-                      />
-                      <span className="text-xs text-primaryGray">{driver.status === 'active' ? 'Can be assigned' : 'Hidden from assignment'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <section>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-primaryGray">Compliance &amp; training</h3>
-                  <ul className="divide-y divide-[#E6EBF3] rounded-md border border-[#E6EBF3]">
-                    {driver.compliance.map((c) => (
-                      <li key={c.key} className="flex-between gap-3 px-3 py-2">
-                        <div>
-                          <p className="text-sm text-headingBlack">{c.label}</p>
-                          <p className="text-xs text-primaryGray">{c.expires ? `Expires ${formatDateLong(c.expires)}` : 'No document on file'}</p>
-                        </div>
-                        <ComplianceBadge state={c.state} />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-
-                <section>
-                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-primaryGray">Upcoming rides</h3>
-                  {rides.filter((r) => r.driverId === driver.id && r.date >= today && !['completed', 'rejected', 'cancelled'].includes(r.status)).length === 0 ? (
-                    <p className="text-xs text-primaryGray">No upcoming rides assigned.</p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {rides
-                        .filter((r) => r.driverId === driver.id && r.date >= today && !['completed', 'rejected', 'cancelled'].includes(r.status))
-                        .sort((a, b) => `${a.date} ${a.pickupTime}`.localeCompare(`${b.date} ${b.pickupTime}`))
-                        .map((r) => (
-                          <li key={r.id} className="flex-between gap-3 rounded-md border border-[#E6EBF3] px-3 py-2">
-                            <div className="min-w-0">
-                              <p className="text-sm text-headingBlack">
-                                {r.rideNo} · {formatDate(r.date)} {formatTime12(r.pickupTime)}
-                              </p>
-                              <p className="truncate text-xs text-primaryGray">{r.dropoff}</p>
-                            </div>
-                            <RideStatusBadge status={r.status} />
-                          </li>
-                        ))}
-                    </ul>
-                  )}
-                </section>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
     </>
   );
 }

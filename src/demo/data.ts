@@ -665,7 +665,7 @@ const addMinutes = (hhmm: string, mins: number) => {
 
 const HISTORY_RIDES: Ride[] = Array.from({ length: 42 }, (_, i) => {
   const n = 24 + i;
-  const dayOffset = -(5 + Math.floor(i * 0.9)); // d(-5) … d(-41)
+  const dayOffset = -(5 + Math.floor(i * 1.7)); // d(-5) … d(-74), covers the paid pay periods
   const patient = HISTORY_PATIENTS[i % HISTORY_PATIENTS.length];
   const route = HISTORY_ROUTES[(i * 3) % HISTORY_ROUTES.length];
   const [driverId, vehicleId] = HISTORY_DRIVERS[i % HISTORY_DRIVERS.length];
@@ -882,13 +882,22 @@ export const CONTRACTS: Contract[] = [
   { id: 'con_05', title: 'Rate Schedule — 2025', type: 'Rate Schedule', status: 'expired', effective: '2025-03-17', expires: '2025-12-31', signedAt: '2025-03-14' },
 ];
 
+/* Bi-weekly statements. Ride counts and payable totals are derived from the completed rides that
+   fall inside each period, so the statement view and the list always agree. */
+const period = (id: string, reportId: string, startOffset: number, endOffset: number, status: PayPeriod['status']): PayPeriod => {
+  const start = d(startOffset);
+  const end = d(endOffset);
+  const inPeriod = RIDES.filter((r) => r.status === 'completed' && r.date >= start && r.date <= end);
+  return { id, reportId, start, end, rides: inPeriod.length, payableAmount: inPeriod.reduce((s, r) => s + r.payableAmount, 0), status };
+};
+
 export const PAY_PERIODS: PayPeriod[] = [
-  { id: 'pp_01', reportId: 'PPR-2026-22', start: d(-1), end: d(13), rides: 5, payableAmount: 29591, status: 'open' },
-  { id: 'pp_02', reportId: 'PPR-2026-21', start: d(-15), end: d(-2), rides: 23, payableAmount: 168420, status: 'submitted' },
-  { id: 'pp_03', reportId: 'PPR-2026-20', start: d(-29), end: d(-16), rides: 27, payableAmount: 191235, status: 'approved' },
-  { id: 'pp_04', reportId: 'PPR-2026-19', start: d(-43), end: d(-30), rides: 25, payableAmount: 176980, status: 'paid' },
-  { id: 'pp_05', reportId: 'PPR-2026-18', start: d(-57), end: d(-44), rides: 21, payableAmount: 149310, status: 'paid' },
-  { id: 'pp_06', reportId: 'PPR-2026-17', start: d(-71), end: d(-58), rides: 26, payableAmount: 184455, status: 'paid' },
+  period('pp_01', 'PPR-2026-22', -1, 13, 'open'),
+  period('pp_02', 'PPR-2026-21', -15, -2, 'submitted'),
+  period('pp_03', 'PPR-2026-20', -29, -16, 'approved'),
+  period('pp_04', 'PPR-2026-19', -43, -30, 'paid'),
+  period('pp_05', 'PPR-2026-18', -57, -44, 'paid'),
+  period('pp_06', 'PPR-2026-17', -71, -58, 'paid'),
 ];
 
 export const NOTIFICATIONS: AppNotification[] = [

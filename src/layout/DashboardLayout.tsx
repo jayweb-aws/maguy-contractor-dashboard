@@ -54,7 +54,6 @@ type NavItem = NavLeaf | NavGroup;
 
 const NAV: NavItem[] = [
   { label: 'Dashboard', to: '/', icon: LayoutDashboard, end: true },
-  { label: 'Dispatch', to: '/dispatch', icon: Radio, badge: 'incoming' },
   {
     label: 'Schedules',
     icon: CalendarDays,
@@ -66,6 +65,7 @@ const NAV: NavItem[] = [
       { label: 'Calendar', to: '/schedules/calendar' },
     ],
   },
+  { label: 'Dispatch', to: '/dispatch', icon: Radio, badge: 'incoming' },
   { label: 'Ride History', to: '/history', icon: History },
   { label: 'My Drivers', to: '/drivers', icon: Users },
   { label: 'Vehicles', to: '/vehicles', icon: Car },
@@ -82,12 +82,23 @@ function leafMatches(leaf: NavLeaf, pathname: string) {
   return leaf.end || leaf.to === '/' ? pathname === leaf.to : pathname.startsWith(leaf.to);
 }
 
-/** Longest-prefix match so "/schedules/calendar" wins over "/schedules". */
+/** Longest-prefix match so "/schedules/calendar" wins over "/schedules"; drill-down pages such as
+ *  "/schedules/rides/:id" or "/drivers/:id" fall back to the closest parent item. */
 function currentLeaf(pathname: string): NavLeaf | undefined {
   const leaves: NavLeaf[] = NAV.flatMap((n) => (isGroup(n) ? n.children : [n]));
+  const exact = leaves.filter((l) => leafMatches(l, pathname)).sort((a, b) => b.to.length - a.to.length)[0];
+  if (exact) return exact;
+  if (pathname.startsWith('/schedules/rides')) return leaves.find((l) => l.to === '/schedules');
   return leaves
-    .filter((l) => leafMatches(l, pathname))
+    .filter((l) => l.to !== '/' && pathname.startsWith(l.to))
     .sort((a, b) => b.to.length - a.to.length)[0];
+}
+
+/** Sidebar highlight for drill-down pages: `/drivers/abc` keeps "My Drivers" active, `/schedules/rides/x` keeps "Schedule". */
+function leafActive(leaf: NavLeaf, pathname: string, isActive: boolean) {
+  if (isActive) return true;
+  if (leaf.to === '/schedules') return pathname.startsWith('/schedules/rides');
+  return false;
 }
 
 export function DashboardLayout() {
@@ -130,17 +141,18 @@ export function DashboardLayout() {
         to={leaf.to}
         end={leaf.end}
         onClick={() => setOpen(false)}
-        className={({ isActive }) =>
-          nested
+        className={({ isActive }) => {
+          const active = leafActive(leaf, location.pathname, isActive);
+          return nested
             ? cn(
                 'relative flex items-center justify-between py-0.5 text-sm transition-all before:absolute before:-left-6 before:bottom-2 before:h-[34px] before:w-[18px] before:rounded-bl-lg before:border-b-2 before:border-l-2 before:border-[#E6EBF3] hover:text-primary',
-                isActive ? 'font-medium text-primary' : 'text-primaryGray',
+                active ? 'font-medium text-primary' : 'text-primaryGray',
               )
             : cn(
                 'flex items-center gap-3 rounded-md px-[1.1rem] py-[0.7rem] text-sm font-medium transition-colors',
-                isActive ? 'bg-[#F1F6FF] text-brand-deep-blue' : 'text-sidebarGray hover:bg-[#F1F6FF]/70 hover:text-headingBlack',
-              )
-        }
+                active ? 'bg-[#F1F6FF] text-brand-deep-blue' : 'text-sidebarGray hover:bg-[#F1F6FF]/70 hover:text-headingBlack',
+              );
+        }}
       >
         {Icon && <Icon className="h-5 w-5 shrink-0" />}
         <span className="flex-1 truncate">{leaf.label}</span>

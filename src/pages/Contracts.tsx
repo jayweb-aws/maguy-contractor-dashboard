@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -57,9 +58,9 @@ export default function Contracts() {
       header: 'Agreement',
       className: 'whitespace-normal font-medium text-headingBlack',
       cell: (c) => (
-        <span className="inline-flex items-center gap-2">
+        <Link to={`/contracts/${c.id}`} className="inline-flex items-center gap-2 text-primary hover:underline">
           <FileText className="h-4 w-4 shrink-0 text-primaryGray" /> {c.title}
-        </span>
+        </Link>
       ),
     },
     { id: 'type', header: 'Type', cell: (c) => c.type },
@@ -84,8 +85,8 @@ export default function Contracts() {
             Review &amp; sign
           </Button>
         ) : (
-          <Button variant="outline" onClick={() => stub('PDF viewer')}>
-            View PDF
+          <Button variant="outline" asChild>
+            <Link to={`/contracts/${c.id}`}>View</Link>
           </Button>
         ),
     },
@@ -131,7 +132,7 @@ export default function Contracts() {
           table={table}
           actions={(c) => (
             <>
-              <TableActionDropdownItem label="View" displayLabel="View PDF" onSelect={() => stub('PDF viewer')} />
+              <TableActionDropdownItem label="View" link={`/contracts/${c.id}`} />
               <TableActionDropdownItem label="Download" onSelect={() => stub('Download')} />
               {c.status === 'pending-signature' && <TableActionDropdownItem label="Sign" displayLabel="Review & Sign" onSelect={() => stub('E-signature')} />}
             </>

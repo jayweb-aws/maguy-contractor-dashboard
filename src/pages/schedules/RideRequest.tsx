@@ -245,7 +245,8 @@ export default function RideRequest() {
               table={recTable}
               actions={(s) => (
                 <>
-                  <TableActionDropdownItem label="View" onSelect={() => defer(() => setOpenSeries(s.id))} />
+                  <TableActionDropdownItem label="View" link={`/schedules/recurring-rides/${s.id}`} />
+                  <TableActionDropdownItem label="Details" displayLabel="Quick View" onSelect={() => defer(() => setOpenSeries(s.id))} />
                   {canAcceptRecurring(s) && <TableActionDropdownItem label="Accept" onSelect={() => acceptRecurring(s.id)} />}
                   {canRejectRecurring(s) && (
                     <TableActionDropdownItem label="Reject" destructive onSelect={() => defer(() => setRejectingSeries(s))} />

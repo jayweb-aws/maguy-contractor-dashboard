@@ -1,6 +1,6 @@
 /* Compliance & Documents — company documents + driver compliance, with a mock upload action. */
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -73,7 +73,16 @@ export default function Documents() {
 
   const stub = (what: string) => toast(`${what} is not part of this prototype`);
   const columns: Column<Document>[] = [
-    { id: 'title', header: 'Document', className: 'whitespace-normal font-medium text-headingBlack', cell: (d) => d.title },
+    {
+      id: 'title',
+      header: 'Document',
+      className: 'whitespace-normal',
+      cell: (d) => (
+        <Link to={`/documents/${d.id}`} className="font-medium text-primary hover:underline">
+          {d.title}
+        </Link>
+      ),
+    },
     { id: 'category', header: 'Category', cell: (d) => d.category },
     { id: 'owner', header: 'Belongs to', cell: (d) => (d.owner === 'company' ? 'Company' : fullName(driverById(d.owner))) },
     { id: 'uploaded', header: 'Uploaded', cell: (d) => (d.uploadedAt ? formatDateLong(d.uploadedAt) : '—') },
@@ -84,8 +93,8 @@ export default function Documents() {
       header: 'Action',
       cell: (d) =>
         d.state === 'valid' ? (
-          <Button variant="link" className="h-auto p-0" onClick={() => stub('Document preview')}>
-            View
+          <Button variant="link" className="h-auto p-0" asChild>
+            <Link to={`/documents/${d.id}`}>View</Link>
           </Button>
         ) : (
           <Button variant="outline-primary" onClick={() => markDocumentUploaded(d.id)}>
@@ -155,7 +164,7 @@ export default function Documents() {
           table={table}
           actions={(d) => (
             <>
-              <TableActionDropdownItem label="View" onSelect={() => stub('Document preview')} />
+              <TableActionDropdownItem label="View" link={`/documents/${d.id}`} />
               <TableActionDropdownItem label="Download" onSelect={() => stub('Download')} />
               <TableActionDropdownItem
                 label="Upload"

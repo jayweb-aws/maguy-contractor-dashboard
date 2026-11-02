@@ -1,6 +1,7 @@
 /* Schedules → Recurring Ride: the recurring series Maguy assigned to the contractor
    (Medtransport "Approved Recurring Rides" columns) plus the default-driver assignment. */
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Tabs } from '@/components/ui/tabs';
 import { EmptyState, PageHeader, StatCard, formatDate, formatDateLong } from '@/components/shared';
@@ -63,9 +64,9 @@ export default function RecurringRides() {
       id: 'id',
       header: 'Request ID',
       cell: (s) => (
-        <button className="font-medium text-primary hover:underline" onClick={() => setOpenSeries(s.id)}>
+        <Link to={`/schedules/recurring-rides/${s.id}`} className="font-medium text-primary hover:underline">
           {s.requestId}
-        </button>
+        </Link>
       ),
     },
     {
@@ -198,14 +199,16 @@ export default function RecurringRides() {
           table={table}
           actions={(s) => (
             <>
-              <TableActionDropdownItem label="View" onSelect={() => defer(() => setOpenSeries(s.id))} />
+              <TableActionDropdownItem label="View" link={`/schedules/recurring-rides/${s.id}`} />
+              {canAssignRecurringDriver(s) && <TableActionDropdownItem label="Edit" link={`/schedules/recurring-rides/${s.id}/edit`} />}
+              <TableActionDropdownItem label="Details" displayLabel="Quick View" onSelect={() => defer(() => setOpenSeries(s.id))} />
               <TableActionDropdownItem label="Occurrences" displayLabel="Open in Calendar" link="/schedules/calendar" />
               {canAcceptRecurring(s) && <TableActionDropdownItem label="Accept" onSelect={() => acceptRecurring(s.id)} />}
               {canAssignRecurringDriver(s) && (
                 <TableActionDropdownItem
                   label={s.driverId ? 'Reassign' : 'Assign'}
                   displayLabel={s.driverId ? 'Change Default Driver' : 'Assign Default Driver'}
-                  onSelect={() => defer(() => setOpenSeries(s.id))}
+                  link={`/schedules/recurring-rides/${s.id}/edit`}
                 />
               )}
               {canRejectRecurring(s) && (

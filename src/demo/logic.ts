@@ -124,6 +124,63 @@ export function unassignDriver(ride: Ride): Ride {
   return { ...ride, status: 'accepted', driverId: undefined, vehicleId: undefined };
 }
 
+/** Forward-only progress a contractor dispatcher may record on behalf of the driver
+ *  (Medtransport's dispatch status select, restricted to the ride's own lifecycle). */
+export const PROGRESS_ORDER: RideStatus[] = ['assigned', 'en-route', 'arrived', 'picked-up', 'completed'];
+
+export function nextStatuses(ride: Ride): RideStatus[] {
+  const i = PROGRESS_ORDER.indexOf(ride.status);
+  if (i < 0) return [];
+  if (!ride.driverId) return [];
+  return PROGRESS_ORDER.slice(i + 1);
+}
+
+export function canSetStatus(ride: Ride, status: RideStatus) {
+  return nextStatuses(ride).includes(status);
+}
+
+export function setRideStatus(ride: Ride, status: RideStatus, nowHHMM: string, nowIso: string): Ride {
+  if (!canSetStatus(ride, status)) return ride;
+  const next: Ride = { ...ride, status };
+  if (status === 'picked-up' && !next.actualPickupTime) next.actualPickupTime = nowHHMM;
+  if (status === 'completed') {
+    if (!next.actualPickupTime) next.actualPickupTime = nowHHMM;
+    if (!next.actualDropoffTime) next.actualDropoffTime = nowHHMM;
+    next.completedAt = nowIso;
+  }
+  return next;
+}
+
+/** Fields the contractor may change on a ride; everything else belongs to Maguy dispatch. */
+export type RideEditable = Pick<
+  Ride,
+  'driverId' | 'vehicleId' | 'pickupMileage' | 'dropMileage' | 'actualPickupTime' | 'actualDropoffTime' | 'needTwoMan' | 'escortName' | 'notes'
+>;
+
+export function canEditRide(ride: Ride) {
+  return ride.status !== 'rejected' && ride.status !== 'cancelled';
+}
+
+export function applyRideEdit(ride: Ride, patch: Partial<RideEditable>, drivers: Driver[]): Ride {
+  if (!canEditRide(ride)) return ride;
+  let next: Ride = { ...ride };
+  const { driverId, vehicleId, ...rest } = patch;
+  Object.assign(next, rest);
+  if (driverId !== undefined && driverId !== ride.driverId) {
+    if (!driverId) {
+      next = unassignDriver(next);
+    } else {
+      const d = drivers.find((x) => x.id === driverId);
+      if (d && driverCanBeAssigned(d) && canAssignDriver(next)) next = assignDriver(next, d);
+    }
+  }
+  if (vehicleId !== undefined && next.driverId) next.vehicleId = vehicleId || undefined;
+  if (next.pickupMileage !== undefined && next.dropMileage !== undefined && next.dropMileage < next.pickupMileage) {
+    next.dropMileage = ride.dropMileage; // refuse an odometer that runs backwards
+  }
+  return next;
+}
+
 /* ---------- bulk ---------- */
 
 export function acceptAll(rides: Ride[], now: string): Ride[] {
@@ -596,6 +653,13 @@ export function assignRecurringDriver(s: RecurringRide, driver: Driver): Recurri
 
 export function unassignRecurringDriver(s: RecurringRide): RecurringRide {
   return { ...s, driverId: undefined, vehicleId: undefined };
+}
+
+/** Rides that fall inside a pay period (completed only — the statement pays finished rides). */
+export function ridesInPeriod(rides: Ride[], start: string, end: string) {
+  return rides
+    .filter((r) => r.status === 'completed' && r.date >= start && r.date <= end)
+    .sort((a, b) => `${a.date} ${a.pickupTime}`.localeCompare(`${b.date} ${b.pickupTime}`));
 }
 
 /** Occurrences per week for a series. */

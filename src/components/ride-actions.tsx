@@ -25,6 +25,7 @@ import {
   availableDrivers,
   canAccept,
   canAssignDriver,
+  canEditRide,
   canReject,
   driverCanBeAssigned,
   fullName,
@@ -190,7 +191,9 @@ export function RideMenuItems({
   const defer = (fn: () => void) => setTimeout(fn, 0);
   return (
     <>
-      <TableActionDropdownItem label="View" onSelect={() => defer(() => onView(ride.id))} />
+      <TableActionDropdownItem label="View" link={`/schedules/rides/${ride.id}`} />
+      {canEditRide(ride) && <TableActionDropdownItem label="Edit" link={`/schedules/rides/${ride.id}/edit`} />}
+      <TableActionDropdownItem label="Details" displayLabel="Quick View" onSelect={() => defer(() => onView(ride.id))} />
       {canAccept(ride) && <TableActionDropdownItem label="Accept" onSelect={() => accept(ride.id)} />}
       {canAssignDriver(ride) && !ride.driverId && (
         <TableActionDropdownItem label="Assign" displayLabel="Assign Driver" onSelect={() => defer(() => onView(ride.id))} />

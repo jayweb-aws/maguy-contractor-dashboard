@@ -1,5 +1,6 @@
 /* Pay Period Reports — Medtransport "pay-period-reports" columns. */
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +52,15 @@ export default function PayPeriods() {
   const stub = (what: string) => toast(`${what} is not part of this prototype`);
 
   const columns: Column<PayPeriod>[] = [
-    { id: 'id', header: 'Report ID', className: 'font-medium text-primary', cell: (p) => p.reportId },
+    {
+      id: 'id',
+      header: 'Report ID',
+      cell: (p) => (
+        <Link to={`/pay-periods/${p.id}`} className="font-medium text-primary hover:underline">
+          {p.reportId}
+        </Link>
+      ),
+    },
     { id: 'start', header: 'Pay Period Start', cell: (p) => formatDateLong(p.start) },
     { id: 'end', header: 'Pay Period End', cell: (p) => formatDateLong(p.end) },
     { id: 'rides', header: 'Rides', headClassName: 'text-right', className: 'text-right', cell: (p) => p.rides },
@@ -128,7 +137,7 @@ export default function PayPeriods() {
           table={table}
           actions={(p) => (
             <>
-              <TableActionDropdownItem label="View" displayLabel="View Report" onSelect={() => stub(`Report ${p.reportId}`)} />
+              <TableActionDropdownItem label="View" displayLabel="View Statement" link={`/pay-periods/${p.id}`} />
               <TableActionDropdownItem label="Download" displayLabel="Download PDF" onSelect={() => stub('Report download')} />
               <TableActionDropdownItem label="History" displayLabel="Rides in Period" link="/history" />
             </>

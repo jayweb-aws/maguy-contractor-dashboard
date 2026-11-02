@@ -1,5 +1,6 @@
 /* Past rides — mirrors Medtransport contractor "past-rides" columns. */
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Download, User } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,10 @@ import type { Ride, RideStatus } from '@/demo/types';
 
 export default function History() {
   const { rides, drivers, driverById, vehicleById, today } = useDemo();
-  const [filters, setFilters] = useState<{ search?: string; driverId?: string; status?: string }>({});
+  const [params] = useSearchParams();
+  const [filters, setFilters] = useState<{ search?: string; driverId?: string; status?: string }>(() => ({
+    driverId: params.get('driver') ?? undefined,
+  }));
   const [openRide, setOpenRide] = useState<string | null>(null);
   const table = useTableState(10);
 
@@ -161,7 +165,8 @@ export default function History() {
           table={table}
           actions={(r) => (
             <>
-              <TableActionDropdownItem label="View" onSelect={() => setTimeout(() => setOpenRide(r.id), 0)} />
+              <TableActionDropdownItem label="View" link={`/schedules/rides/${r.id}`} />
+              <TableActionDropdownItem label="Details" displayLabel="Quick View" onSelect={() => setTimeout(() => setOpenRide(r.id), 0)} />
               <TableActionDropdownItem label="Download" displayLabel="Trip Report (PDF)" onSelect={() => stub('Trip report download')} />
             </>
           )}

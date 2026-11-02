@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as L from '@/demo/logic';
-import { DRIVERS, RECURRING, RIDES, TODAY, VEHICLES } from '@/demo/data';
+import { DRIVERS, PAY_PERIODS, RECURRING, RIDES, TODAY, VEHICLES } from '@/demo/data';
 import type { RecurringRide, Ride } from '@/demo/types';
 
 const NOW = '2026-11-02T08:00:00';
@@ -225,6 +225,67 @@ describe('calendar', () => {
     expect(L.dateToIso(L.isoToDate('2026-11-02'))).toBe('2026-11-02');
     expect(L.addDays('2026-11-30', 1)).toBe('2026-12-01');
     expect(L.addDays('2026-03-01', -1)).toBe('2026-02-28');
+  });
+});
+
+describe('ride edit page rules', () => {
+  const assigned = RIDES.find((r) => r.status === 'assigned')!;
+  const accepted = RIDES.find((r) => r.status === 'accepted' && !r.driverId)!;
+  const completed = RIDES.find((r) => r.status === 'completed')!;
+  const rejected = RIDES.find((r) => r.status === 'rejected')!;
+
+  it('status only moves forward along the ride lifecycle and needs a driver', () => {
+    expect(L.nextStatuses(assigned)).toEqual(['en-route', 'arrived', 'picked-up', 'completed']);
+    expect(L.nextStatuses({ ...assigned, status: 'arrived' })).toEqual(['picked-up', 'completed']);
+    expect(L.nextStatuses(completed)).toEqual([]);
+    expect(L.nextStatuses(accepted)).toEqual([]); // no driver yet
+    expect(L.canSetStatus(assigned, 'assigned')).toBe(false);
+    expect(L.setRideStatus({ ...assigned, status: 'arrived' }, 'en-route', '10:00', NOW)).toEqual({ ...assigned, status: 'arrived' });
+  });
+
+  it('setRideStatus stamps actual times on pickup and completion', () => {
+    const picked = L.setRideStatus(assigned, 'picked-up', '09:05', NOW);
+    expect(picked.status).toBe('picked-up');
+    expect(picked.actualPickupTime).toBe('09:05');
+    const done = L.setRideStatus(picked, 'completed', '09:40', NOW);
+    expect(done.actualPickupTime).toBe('09:05');
+    expect(done.actualDropoffTime).toBe('09:40');
+    expect(done.completedAt).toBe(NOW);
+  });
+
+  it('applyRideEdit changes only contractor fields, assigns through the driver rules and refuses finished rides', () => {
+    const edited = L.applyRideEdit(accepted, { driverId: 'drv_01', notes: 'Call on arrival', pickupMileage: 100, dropMileage: 112 }, DRIVERS);
+    expect(edited.status).toBe('assigned');
+    expect(edited.driverId).toBe('drv_01');
+    expect(edited.vehicleId).toBe('veh_01');
+    expect(edited.notes).toBe('Call on arrival');
+    expect(edited.patient).toEqual(accepted.patient);
+    expect(edited.payableAmount).toBe(accepted.payableAmount);
+    expect(L.applyRideEdit(accepted, { driverId: 'drv_04' }, DRIVERS).driverId).toBeUndefined(); // expired compliance
+    expect(L.applyRideEdit(assigned, { driverId: '' }, DRIVERS).status).toBe('accepted'); // clearing the driver un-assigns
+    expect(L.applyRideEdit(rejected, { notes: 'x' }, DRIVERS)).toBe(rejected);
+    expect(L.canEditRide(completed)).toBe(true);
+  });
+
+  it('applyRideEdit refuses an odometer that runs backwards', () => {
+    const out = L.applyRideEdit(assigned, { pickupMileage: 500, dropMileage: 480 }, DRIVERS);
+    expect(out.pickupMileage).toBe(500);
+    expect(out.dropMileage).toBe(assigned.dropMileage);
+  });
+
+  it('ridesInPeriod returns completed rides inside the window, oldest first', () => {
+    const rows = L.ridesInPeriod(RIDES, L.addDays(TODAY, -29), L.addDays(TODAY, -16));
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((r) => r.status === 'completed' && r.date >= L.addDays(TODAY, -29) && r.date <= L.addDays(TODAY, -16))).toBe(true);
+    for (let i = 1; i < rows.length; i++) expect(rows[i - 1].date <= rows[i].date).toBe(true);
+  });
+
+  it('pay period statements agree with the rides inside them', () => {
+    for (const p of PAY_PERIODS) {
+      const rows = L.ridesInPeriod(RIDES, p.start, p.end);
+      expect(p.rides).toBe(rows.length);
+      expect(p.payableAmount).toBe(rows.reduce((s, r) => s + r.payableAmount, 0));
+    }
   });
 });
 
