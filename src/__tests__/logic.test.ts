@@ -101,12 +101,14 @@ describe('counts and filters', () => {
     const c = L.countRides(RIDES);
     expect(c.total).toBe(RIDES.length);
     expect(c.pending + c.accepted + c.assigned + c.inProgress + c.completed + c.rejected + c.cancelled).toBe(c.total);
-    expect(c.inProgress).toBe(RIDES.filter((r) => r.status === 'en-route' || r.status === 'picked-up').length);
+    expect(c.inProgress).toBe(RIDES.filter((r) => L.IN_PROGRESS_STATUSES.includes(r.status)).length);
+    expect(RIDES.some((r) => r.status === 'arrived')).toBe(true); // "Arrived" is a real dispatch state
   });
 
-  it('filterByTab groups rejected + cancelled and en-route + picked-up', () => {
+  it('filterByTab groups rejected + cancelled and en-route + arrived + picked-up', () => {
     expect(L.filterByTab(RIDES, 'rejected').every((r) => r.status === 'rejected' || r.status === 'cancelled')).toBe(true);
-    expect(L.filterByTab(RIDES, 'in-progress').every((r) => r.status === 'en-route' || r.status === 'picked-up')).toBe(true);
+    expect(L.filterByTab(RIDES, 'in-progress').every((r) => L.IN_PROGRESS_STATUSES.includes(r.status))).toBe(true);
+    expect(L.filterByTab(RIDES, 'in-progress').some((r) => r.status === 'arrived')).toBe(true);
     expect(L.filterByTab(RIDES, 'pending').every((r) => r.status === 'pending')).toBe(true);
     expect(L.filterByTab(RIDES, 'all')).toHaveLength(RIDES.length);
   });
@@ -165,7 +167,7 @@ describe('money and formatting', () => {
 describe('mock data integrity', () => {
   it('every assigned / in-progress ride references an existing active driver', () => {
     for (const r of RIDES) {
-      if (['assigned', 'en-route', 'picked-up'].includes(r.status)) {
+      if (L.ACTIVE_STATUSES.includes(r.status)) {
         const d = DRIVERS.find((x) => x.id === r.driverId) as Driver | undefined;
         expect(d, r.rideNo).toBeDefined();
         expect(d!.status).toBe('active');

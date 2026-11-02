@@ -7,6 +7,7 @@ export type RideStatus =
   | 'accepted' // contractor accepted, no driver yet
   | 'assigned' // contractor assigned one of their drivers
   | 'en-route'
+  | 'arrived' // driver at the pickup address (Medtransport dispatch "Arrived" tab)
   | 'picked-up'
   | 'completed'
   | 'rejected'
@@ -45,6 +46,69 @@ export interface Ride {
   completedAt?: string;
   actualPickupTime?: string;
   actualDropoffTime?: string;
+  /** set when the ride is one occurrence of a recurring series */
+  recurringId?: string;
+}
+
+/* ---------- recurring rides (Medtransport "Recurring Ride Request" → "Approved Recurring Rides") ---------- */
+
+/** 0 = Sunday … 6 = Saturday, as in JavaScript's Date#getDay */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+export type RecurringStatus =
+  | 'pending' // Maguy assigned the series; contractor must accept / reject
+  | 'active' // accepted — occurrences are generated into the schedule
+  | 'paused' // Maguy paused the series (facility request)
+  | 'ended' // past its end date
+  | 'rejected';
+
+export interface RecurringRide {
+  id: string;
+  requestId: string;
+  patient: { name: string; phone: string; mobility: Mobility; notes?: string };
+  days: Weekday[];
+  pickupTime: string; // HH:mm
+  appointmentTime?: string;
+  returnTime?: string; // round trips — leg B pickup
+  tripType: TripType;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  pickup: string;
+  dropoff: string;
+  billingAccount: string;
+  fundingSource: FundingSource;
+  billableMiles: number;
+  /* per occurrence, integer cents */
+  billableAmount: number;
+  commissionPct: number;
+  pickUpCharge: number;
+  payableAmount: number;
+  status: RecurringStatus;
+  driverId?: string; // default driver for every occurrence
+  vehicleId?: string;
+  assignedAt: string;
+  respondBy?: string;
+  acceptedAt?: string;
+  rejectReason?: string;
+  rejectedAt?: string;
+}
+
+/** One generated date of a recurring series (not stored — derived for calendar / schedule views). */
+export interface RecurringOccurrence {
+  id: string; // `${recurringId}@${date}`
+  recurringId: string;
+  requestId: string;
+  date: string;
+  pickupTime: string;
+  appointmentTime?: string;
+  patient: RecurringRide['patient'];
+  pickup: string;
+  dropoff: string;
+  tripType: TripType;
+  payableAmount: number;
+  driverId?: string;
+  vehicleId?: string;
+  status: RecurringStatus;
 }
 
 export type DriverStatus = 'active' | 'inactive' | 'on-leave';
@@ -127,6 +191,7 @@ export interface AppNotification {
   at: string; // ISO
   read: boolean;
   rideId?: string;
+  recurringId?: string;
 }
 
 export interface Contractor {

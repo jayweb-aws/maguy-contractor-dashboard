@@ -1,10 +1,15 @@
-/* Pay Period Reports — Medtransport "pay-period-reports" columns + a simple trend chart. */
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+/* Pay Period Reports — Medtransport "pay-period-reports" columns. */
+import { useMemo, useState } from 'react';
+import { Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DemoNote, PageHeader, SectionCard, StatCard, formatDateLong } from '@/components/shared';
+import { DemoNote, EmptyState, PageHeader, StatCard, formatDateLong } from '@/components/shared';
+import { DataTable, useTableState, type Column } from '@/components/table/DataTable';
+import { ActiveFilters, FilterMenu, type FilterDef } from '@/components/table/FilterMenu';
+import { BulkActionBar } from '@/components/table/BulkActionBar';
+import { TableActionDropdownItem } from '@/components/table/TableActionDropdown';
 import { useDemo } from '@/demo/store';
 import { formatMoney } from '@/demo/logic';
 import type { PayPeriod } from '@/demo/types';
@@ -18,10 +23,64 @@ const STATUS: Record<PayPeriod['status'], { label: string; variant: 'bluish' | '
 
 export default function PayPeriods() {
   const { payPeriods } = useDemo();
+  const [filters, setFilters] = useState<{ search?: string; status?: string }>({});
+  const table = useTableState(10);
   const open = payPeriods.find((p) => p.status === 'open');
   const awaiting = payPeriods.filter((p) => p.status === 'submitted' || p.status === 'approved');
   const paidYtd = payPeriods.filter((p) => p.status === 'paid').reduce((s, p) => s + p.payableAmount, 0);
-  const chart = [...payPeriods].reverse().map((p) => ({ name: p.reportId.replace('PPR-2026-', 'PP '), payable: p.payableAmount / 100, rides: p.rides }));
+
+  const rows = useMemo(() => {
+    const needle = (filters.search ?? '').trim().toLowerCase();
+    return payPeriods.filter((p) => (!filters.status || p.status === filters.status) && (!needle || p.reportId.toLowerCase().includes(needle)));
+  }, [payPeriods, filters]);
+
+  const setFilter = (key: string, val: string | undefined) => {
+    setFilters((f) => ({ ...f, [key]: val }));
+    table.setPage(1);
+  };
+  const filterDefs: FilterDef[] = [
+    { key: 'status', label: 'Status', options: (Object.keys(STATUS) as PayPeriod['status'][]).map((s) => ({ value: s, label: STATUS[s].label })) },
+  ];
+  const chips = Object.entries(filters)
+    .filter(([, v]) => v)
+    .map(([key, value]) => ({
+      key,
+      label: key === 'status' ? 'Status' : 'Search',
+      value: key === 'status' ? STATUS[value as PayPeriod['status']].label : value!,
+    }));
+  const stub = (what: string) => toast(`${what} is not part of this prototype`);
+
+  const columns: Column<PayPeriod>[] = [
+    { id: 'id', header: 'Report ID', className: 'font-medium text-primary', cell: (p) => p.reportId },
+    { id: 'start', header: 'Pay Period Start', cell: (p) => formatDateLong(p.start) },
+    { id: 'end', header: 'Pay Period End', cell: (p) => formatDateLong(p.end) },
+    { id: 'rides', header: 'Rides', headClassName: 'text-right', className: 'text-right', cell: (p) => p.rides },
+    {
+      id: 'payable',
+      header: 'Payable Amount',
+      headClassName: 'text-right',
+      className: 'text-right font-medium text-headingBlack',
+      cell: (p) => formatMoney(p.payableAmount),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (p) => (
+        <Badge variant={STATUS[p.status].variant} withDot>
+          {STATUS[p.status].label}
+        </Badge>
+      ),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      cell: () => (
+        <Button variant="outline" onClick={() => stub('Report download')}>
+          <Download className="h-3.5 w-3.5" /> Download
+        </Button>
+      ),
+    },
+  ];
 
   return (
     <>
@@ -42,62 +101,41 @@ export default function PayPeriods() {
         </DemoNote>
       </div>
 
-      <div className="mt-4 grid min-w-0 gap-4 xl:grid-cols-3 [&>*]:min-w-0">
-        <SectionCard title="Payable by period" className="xl:col-span-1" bodyClassName="p-2 lg:p-3">
-          <div className="h-56 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chart} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                <CartesianGrid vertical={false} stroke="#E6EBF3" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#7F8596' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#7F8596' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`} />
-                <Tooltip
-                  cursor={{ fill: '#F1F6FF' }}
-                  formatter={(v: number) => [`$${v.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 'Payable']}
-                  contentStyle={{ borderRadius: 8, border: '1px solid #E6EBF3', fontSize: 12 }}
-                />
-                <Bar dataKey="payable" fill="#0062FF" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+      <Card className="mt-4 p-0 lg:p-0">
+        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+          <h2 className="card-title text-headingBlack">Reports</h2>
+          <div className="lg:w-[420px]">
+            <FilterMenu
+              search={filters.search}
+              onSearch={(q) => setFilter('search', q || undefined)}
+              searchPlaceholder="Search report ID"
+              filters={filterDefs}
+              value={filters}
+              onChange={setFilter}
+            />
           </div>
-        </SectionCard>
-
-        <Card className="p-0 lg:p-0 xl:col-span-2">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="whitespace-nowrap">Report ID</TableHead>
-                <TableHead className="whitespace-nowrap">Pay Period Start</TableHead>
-                <TableHead className="whitespace-nowrap">Pay Period End</TableHead>
-                <TableHead className="text-right">Rides</TableHead>
-                <TableHead className="whitespace-nowrap text-right">Payable Amount</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {payPeriods.map((p) => (
-                <TableRow key={p.id} className="text-xs md:text-sm">
-                  <TableCell className="whitespace-nowrap font-medium text-primary">{p.reportId}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDateLong(p.start)}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDateLong(p.end)}</TableCell>
-                  <TableCell className="text-right">{p.rides}</TableCell>
-                  <TableCell className="text-right font-medium text-headingBlack">{formatMoney(p.payableAmount)}</TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS[p.status].variant} withDot>
-                      {STATUS[p.status].label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="outline" disabled>
-                      Download
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
-      </div>
+        </div>
+        <ActiveFilters chips={chips} onRemove={(k) => setFilter(k, undefined)} onClearAll={() => setFilters({})} className="border-t border-[#E6EBF3] px-4 py-3 lg:px-6" />
+        <BulkActionBar count={table.selected.size} onClear={table.clearSelection}>
+          <Button variant="outline" className="h-8" onClick={() => stub('Download selected')}>
+            <Download className="h-3.5 w-3.5" /> Download {table.selected.size}
+          </Button>
+        </BulkActionBar>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(p) => p.id}
+          table={table}
+          actions={(p) => (
+            <>
+              <TableActionDropdownItem label="View" displayLabel="View Report" onSelect={() => stub(`Report ${p.reportId}`)} />
+              <TableActionDropdownItem label="Download" displayLabel="Download PDF" onSelect={() => stub('Report download')} />
+              <TableActionDropdownItem label="History" displayLabel="Rides in Period" link="/history" />
+            </>
+          )}
+          empty={<EmptyState title="No reports match" />}
+        />
+      </Card>
     </>
   );
 }

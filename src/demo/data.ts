@@ -7,6 +7,7 @@ import type {
   Document,
   Driver,
   PayPeriod,
+  RecurringRide,
   Ride,
   Vehicle,
 } from './types';
@@ -201,7 +202,7 @@ const ride = (
   ...partial,
 });
 
-export const RIDES: Ride[] = [
+const BASE_RIDES: Ride[] = [
   /* ---- pending: need a response today ---- */
   ride(1, {
     date: d(1),
@@ -234,6 +235,7 @@ export const RIDES: Ride[] = [
     payableAmount: 4590,
     status: 'pending',
     respondBy: `${TODAY}T10:00:00`,
+    recurringId: 'rec_01',
   }),
   ride(3, {
     date: d(2),
@@ -373,6 +375,7 @@ export const RIDES: Ride[] = [
     driverId: 'drv_03',
     vehicleId: 'veh_03',
     acceptedAt: `${d(-1)}T09:42:00`,
+    recurringId: 'rec_02',
   }),
   ride(11, {
     date: d(3),
@@ -511,6 +514,352 @@ export const RIDES: Ride[] = [
     actualPickupTime: '07:18',
     actualDropoffTime: '07:55',
   }),
+
+  /* ---- today: driver at the pickup address ---- */
+  ride(18, {
+    date: TODAY,
+    pickupTime: '12:30',
+    appointmentTime: '13:15',
+    patient: { name: 'O. Fernandes', phone: '(503) 555-0340', mobility: 'Ambulatory' },
+    pickup: '5050 NE Hoyt St, Portland, OR',
+    dropoff: 'Providence Portland Medical Center, 4805 NE Glisan St',
+    billableMiles: 1.8,
+    billingAccount: 'CareOregon Medicaid',
+    billableAmount: 4100,
+    pickUpCharge: 1000,
+    payableAmount: 3485,
+    status: 'arrived',
+    driverId: 'drv_03',
+    vehicleId: 'veh_03',
+    acceptedAt: `${d(-2)}T11:06:00`,
+  }),
+
+  /* ---- next two weeks: scheduled ---- */
+  ride(19, {
+    date: d(4),
+    pickupTime: '09:15',
+    appointmentTime: '10:00',
+    patient: { name: 'V. Castellanos', phone: '(503) 555-0351', mobility: 'Wheelchair' },
+    pickup: '7820 SE Foster Rd, Portland, OR',
+    dropoff: 'Adventist Health Portland, 10123 SE Market St',
+    billableMiles: 3.9,
+    billingAccount: 'Ride to Care — Brokerage',
+    fundingSource: 'Brokerage',
+    billableAmount: 5600,
+    pickUpCharge: 1200,
+    payableAmount: 4760,
+    status: 'assigned',
+    driverId: 'drv_02',
+    vehicleId: 'veh_02',
+    acceptedAt: `${d(-1)}T15:12:00`,
+  }),
+  ride(20, {
+    date: d(5),
+    pickupTime: '13:45',
+    appointmentTime: '14:30',
+    patient: { name: 'I. Sorensen', phone: '(503) 555-0362', mobility: 'Ambulatory' },
+    pickup: '2025 N Vancouver Ave, Portland, OR',
+    dropoff: 'Legacy Emanuel Medical Center, 2801 N Gantenbein Ave',
+    billableMiles: 1.4,
+    billingAccount: 'CareOregon Medicaid',
+    billableAmount: 4000,
+    pickUpCharge: 1000,
+    payableAmount: 3400,
+    status: 'accepted',
+    acceptedAt: `${d(-1)}T15:13:00`,
+  }),
+  ride(21, {
+    date: d(6),
+    pickupTime: '08:00',
+    appointmentTime: '08:45',
+    patient: { name: 'M. Okonkwo', phone: '(503) 555-0239', mobility: 'Stretcher', notes: 'Oxygen on board; 2-person lift.' },
+    pickup: 'Rose Villa Senior Living, 13505 SE River Rd, Milwaukie, OR',
+    dropoff: 'OHSU Hospital, 3181 SW Sam Jackson Park Rd',
+    billableMiles: 11.8,
+    billingAccount: 'Ride to Care — Brokerage',
+    fundingSource: 'Brokerage',
+    billableAmount: 14200,
+    pickUpCharge: 2500,
+    payableAmount: 12070,
+    status: 'assigned',
+    driverId: 'drv_01',
+    vehicleId: 'veh_01',
+    acceptedAt: `${d(-1)}T15:14:00`,
+  }),
+  ride(22, {
+    date: d(8),
+    pickupTime: '10:00',
+    appointmentTime: '10:45',
+    patient: { name: 'G. Petrova', phone: '(503) 555-0281', mobility: 'Ambulatory' },
+    pickup: '4455 NE Alberta St, Portland, OR',
+    dropoff: 'Legacy Good Samaritan, 1015 NW 22nd Ave',
+    billableMiles: 5.2,
+    billingAccount: 'Private Pay',
+    fundingSource: 'Private Pay',
+    billableAmount: 5200,
+    pickUpCharge: 1000,
+    payableAmount: 4420,
+    status: 'assigned',
+    driverId: 'drv_03',
+    vehicleId: 'veh_03',
+    acceptedAt: `${d(-1)}T15:15:00`,
+  }),
+  ride(23, {
+    date: d(9),
+    pickupTime: '15:30',
+    appointmentTime: '16:15',
+    patient: { name: 'R. Whitfield', phone: '(503) 555-0201', mobility: 'Wheelchair' },
+    pickup: '2210 SE Division St, Portland, OR',
+    dropoff: 'Providence Portland Medical Center, 4805 NE Glisan St',
+    billableMiles: 6.4,
+    billingAccount: 'CareOregon Medicaid',
+    billableAmount: 6850,
+    pickUpCharge: 1200,
+    payableAmount: 5823,
+    status: 'accepted',
+    acceptedAt: `${d(-1)}T15:16:00`,
+  }),
+];
+
+/* Six weeks of history generated deterministically so Dispatch → Completed, Ride History and the
+   pay periods have enough rows to page through. Amounts come from fixed sample routes. */
+const HISTORY_PATIENTS: Ride['patient'][] = [
+  { name: 'R. Whitfield', phone: '(503) 555-0201', mobility: 'Wheelchair' },
+  { name: 'J. Delacroix', phone: '(503) 555-0214', mobility: 'Ambulatory' },
+  { name: 'B. Castellano', phone: '(503) 555-0252', mobility: 'Ambulatory' },
+  { name: 'S. Adeyemi', phone: '(503) 555-0263', mobility: 'Wheelchair' },
+  { name: 'L. Fitzgerald', phone: '(503) 555-0277', mobility: 'Stretcher' },
+  { name: 'D. Haugen', phone: '(503) 555-0303', mobility: 'Ambulatory' },
+  { name: 'C. Mbeki', phone: '(503) 555-0290', mobility: 'Wheelchair' },
+  { name: 'O. Fernandes', phone: '(503) 555-0340', mobility: 'Ambulatory' },
+];
+
+const HISTORY_ROUTES: Pick<
+  Ride,
+  'pickup' | 'dropoff' | 'billableMiles' | 'billingAccount' | 'fundingSource' | 'billableAmount' | 'pickUpCharge' | 'payableAmount'
+>[] = [
+  { pickup: '2210 SE Division St, Portland, OR', dropoff: 'Providence Portland Medical Center, 4805 NE Glisan St', billableMiles: 6.4, billingAccount: 'CareOregon Medicaid', fundingSource: 'Medicaid', billableAmount: 6850, pickUpCharge: 1200, payableAmount: 5823 },
+  { pickup: '815 N Killingsworth St, Portland, OR', dropoff: 'Legacy Emanuel Dialysis, 2801 N Gantenbein Ave', billableMiles: 4.1, billingAccount: 'DaVita Dialysis — Institution', fundingSource: 'Institution', billableAmount: 5400, pickUpCharge: 1000, payableAmount: 4590 },
+  { pickup: '3140 NE Broadway, Portland, OR', dropoff: 'The Portland Clinic, 800 SW 13th Ave', billableMiles: 3.6, billingAccount: 'CareOregon Medicaid', fundingSource: 'Medicaid', billableAmount: 4600, pickUpCharge: 1000, payableAmount: 3910 },
+  { pickup: '1120 SW 3rd Ave, Portland, OR', dropoff: 'Adventist Health Portland, 10123 SE Market St', billableMiles: 8.9, billingAccount: 'Ride to Care — Brokerage', fundingSource: 'Brokerage', billableAmount: 7850, pickUpCharge: 1200, payableAmount: 6673 },
+  { pickup: 'Marquis Mt. Tabor, 6040 SE Belmont St, Portland, OR', dropoff: 'Providence St. Vincent, 9205 SW Barnes Rd', billableMiles: 12.6, billingAccount: 'Marquis Companies — Institution', fundingSource: 'Institution', billableAmount: 15100, pickUpCharge: 2500, payableAmount: 12835 },
+  { pickup: '9800 SW Hall Blvd, Tigard, OR', dropoff: 'Fresenius Kidney Care Tigard, 11940 SW Pacific Hwy', billableMiles: 3.3, billingAccount: 'Fresenius — Institution', fundingSource: 'Institution', billableAmount: 4800, pickUpCharge: 1000, payableAmount: 4080 },
+  { pickup: 'Providence Portland Medical Center, 4805 NE Glisan St', dropoff: '2210 SE Division St, Portland, OR', billableMiles: 6.4, billingAccount: 'CareOregon Medicaid', fundingSource: 'Medicaid', billableAmount: 6850, pickUpCharge: 1200, payableAmount: 5823 },
+  { pickup: '5050 NE Hoyt St, Portland, OR', dropoff: 'Kaiser Sunnyside Medical Center, 10180 SE Sunnyside Rd', billableMiles: 9.7, billingAccount: 'Kaiser Permanente — Institution', fundingSource: 'Institution', billableAmount: 8400, pickUpCharge: 1200, payableAmount: 7140 },
+];
+
+const HISTORY_DRIVERS: [string, string][] = [
+  ['drv_01', 'veh_01'],
+  ['drv_02', 'veh_02'],
+  ['drv_03', 'veh_03'],
+];
+
+const HISTORY_TIMES = ['07:30', '08:45', '10:00', '11:15', '13:00', '14:30', '16:00'];
+
+const pad = (n: number) => n.toString().padStart(2, '0');
+const addMinutes = (hhmm: string, mins: number) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = h * 60 + m + mins;
+  return `${pad(Math.floor(total / 60) % 24)}:${pad(total % 60)}`;
+};
+
+const HISTORY_RIDES: Ride[] = Array.from({ length: 42 }, (_, i) => {
+  const n = 24 + i;
+  const dayOffset = -(5 + Math.floor(i * 0.9)); // d(-5) … d(-41)
+  const patient = HISTORY_PATIENTS[i % HISTORY_PATIENTS.length];
+  const route = HISTORY_ROUTES[(i * 3) % HISTORY_ROUTES.length];
+  const [driverId, vehicleId] = HISTORY_DRIVERS[i % HISTORY_DRIVERS.length];
+  const pickupTime = HISTORY_TIMES[(i * 2) % HISTORY_TIMES.length];
+  const date = d(dayOffset);
+  const base = {
+    date,
+    pickupTime,
+    appointmentTime: addMinutes(pickupTime, 45),
+    patient,
+    ...route,
+    tripType: (i % 4 === 1 ? 'Round trip' : 'One-way') as Ride['tripType'],
+    assignedAt: `${d(dayOffset - 2)}T16:${pad(10 + (i % 40))}:00`,
+    respondBy: `${d(dayOffset - 1)}T12:00:00`,
+    acceptedAt: `${d(dayOffset - 2)}T17:${pad(5 + (i % 50))}:00`,
+  };
+  if (i % 11 === 7) {
+    return ride(n, { ...base, status: 'cancelled', driverId, vehicleId });
+  }
+  if (i % 13 === 5) {
+    return ride(n, {
+      ...base,
+      status: 'rejected',
+      rejectReason: i % 2 ? 'Pickup time conflicts with an existing ride' : 'No driver available in that window',
+      rejectedAt: `${d(dayOffset - 1)}T09:30:00`,
+      acceptedAt: undefined,
+    });
+  }
+  const late = (i * 7) % 9; // 0–8 minutes after the scheduled pickup
+  return ride(n, {
+    ...base,
+    status: 'completed',
+    driverId,
+    vehicleId,
+    actualPickupTime: addMinutes(pickupTime, late),
+    actualDropoffTime: addMinutes(pickupTime, late + 22 + (i % 17)),
+    completedAt: `${date}T${addMinutes(pickupTime, late + 30)}:00`,
+  });
+});
+
+export const RIDES: Ride[] = [...BASE_RIDES, ...HISTORY_RIDES];
+
+/* Recurring series Maguy dispatch assigns to the contractor (Medtransport "Recurring Ride Request"
+   → "Approved Recurring Rides"). Amounts are per occurrence, integer cents, sample values. */
+export const RECURRING: RecurringRide[] = [
+  {
+    id: 'rec_01',
+    requestId: 'RR-2026-031',
+    patient: { name: 'J. Delacroix', phone: '(503) 555-0214', mobility: 'Ambulatory' },
+    days: [2, 4, 6],
+    pickupTime: '10:30',
+    appointmentTime: '11:15',
+    returnTime: '15:30',
+    tripType: 'Round trip',
+    startDate: d(-40),
+    endDate: d(80),
+    pickup: '815 N Killingsworth St, Portland, OR',
+    dropoff: 'Legacy Emanuel Dialysis, 2801 N Gantenbein Ave',
+    billingAccount: 'DaVita Dialysis — Institution',
+    fundingSource: 'Institution',
+    billableMiles: 4.1,
+    billableAmount: 5400,
+    commissionPct: 15,
+    pickUpCharge: 1000,
+    payableAmount: 4590,
+    status: 'active',
+    driverId: 'drv_03',
+    vehicleId: 'veh_03',
+    assignedAt: `${d(-42)}T10:00:00`,
+    acceptedAt: `${d(-41)}T08:30:00`,
+  },
+  {
+    id: 'rec_02',
+    requestId: 'RR-2026-044',
+    patient: { name: 'D. Haugen', phone: '(503) 555-0303', mobility: 'Ambulatory' },
+    days: [2, 4, 6],
+    pickupTime: '06:45',
+    appointmentTime: '07:30',
+    returnTime: '11:30',
+    tripType: 'Round trip',
+    startDate: d(-20),
+    endDate: d(100),
+    pickup: '9800 SW Hall Blvd, Tigard, OR',
+    dropoff: 'Fresenius Kidney Care Tigard, 11940 SW Pacific Hwy',
+    billingAccount: 'Fresenius — Institution',
+    fundingSource: 'Institution',
+    billableMiles: 3.3,
+    billableAmount: 4800,
+    commissionPct: 15,
+    pickUpCharge: 1000,
+    payableAmount: 4080,
+    status: 'active',
+    driverId: 'drv_03',
+    vehicleId: 'veh_03',
+    assignedAt: `${d(-22)}T14:20:00`,
+    acceptedAt: `${d(-21)}T07:50:00`,
+  },
+  {
+    id: 'rec_03',
+    requestId: 'RR-2026-058',
+    patient: { name: 'N. Abara', phone: '(503) 555-0377', mobility: 'Wheelchair', notes: 'Infusion therapy — allow 3 h at destination.' },
+    days: [1, 3],
+    pickupTime: '14:00',
+    appointmentTime: '14:45',
+    tripType: 'One-way',
+    startDate: d(7),
+    endDate: d(97),
+    pickup: '1631 NE Broadway, Portland, OR',
+    dropoff: 'Providence Cancer Institute, 4805 NE Glisan St',
+    billingAccount: 'CareOregon Medicaid',
+    fundingSource: 'Medicaid',
+    billableMiles: 2.7,
+    billableAmount: 4500,
+    commissionPct: 15,
+    pickUpCharge: 1200,
+    payableAmount: 3825,
+    status: 'pending',
+    assignedAt: `${d(-1)}T16:40:00`,
+    respondBy: `${d(2)}T17:00:00`,
+  },
+  {
+    id: 'rec_04',
+    requestId: 'RR-2026-059',
+    patient: { name: 'W. Brennan', phone: '(503) 555-0388', mobility: 'Ambulatory' },
+    days: [1, 2, 3, 4, 5],
+    pickupTime: '07:30',
+    appointmentTime: '08:00',
+    returnTime: '12:00',
+    tripType: 'Round trip',
+    startDate: d(14),
+    endDate: d(74),
+    pickup: '6630 SW Capitol Hwy, Portland, OR',
+    dropoff: 'Hillsdale Adult Day Program, 1405 SW Vermont St',
+    billingAccount: 'Ride to Care — Brokerage',
+    fundingSource: 'Brokerage',
+    billableMiles: 2.1,
+    billableAmount: 4200,
+    commissionPct: 15,
+    pickUpCharge: 1000,
+    payableAmount: 3570,
+    status: 'pending',
+    assignedAt: `${d(-1)}T16:52:00`,
+    respondBy: `${d(3)}T17:00:00`,
+  },
+  {
+    id: 'rec_05',
+    requestId: 'RR-2026-027',
+    patient: { name: 'T. Nguyen', phone: '(503) 555-0399', mobility: 'Wheelchair' },
+    days: [5],
+    pickupTime: '09:00',
+    appointmentTime: '09:45',
+    tripType: 'One-way',
+    startDate: d(-60),
+    endDate: d(60),
+    pickup: '12000 SE 82nd Ave, Happy Valley, OR',
+    dropoff: 'Kaiser Sunnyside Medical Center, 10180 SE Sunnyside Rd',
+    billingAccount: 'Kaiser Permanente — Institution',
+    fundingSource: 'Institution',
+    billableMiles: 2.9,
+    billableAmount: 4300,
+    commissionPct: 15,
+    pickUpCharge: 1200,
+    payableAmount: 3655,
+    status: 'paused',
+    driverId: 'drv_01',
+    vehicleId: 'veh_01',
+    assignedAt: `${d(-62)}T11:00:00`,
+    acceptedAt: `${d(-61)}T09:10:00`,
+  },
+  {
+    id: 'rec_06',
+    requestId: 'RR-2026-012',
+    patient: { name: 'A. Kowalski', phone: '(503) 555-0410', mobility: 'Ambulatory' },
+    days: [1, 4],
+    pickupTime: '11:00',
+    appointmentTime: '11:45',
+    tripType: 'One-way',
+    startDate: d(-120),
+    endDate: d(-10),
+    pickup: '4000 SE Woodstock Blvd, Portland, OR',
+    dropoff: 'Providence Portland Medical Center, 4805 NE Glisan St',
+    billingAccount: 'CareOregon Medicaid',
+    fundingSource: 'Medicaid',
+    billableMiles: 5.5,
+    billableAmount: 6200,
+    commissionPct: 15,
+    pickUpCharge: 1200,
+    payableAmount: 5270,
+    status: 'ended',
+    driverId: 'drv_02',
+    vehicleId: 'veh_02',
+    assignedAt: `${d(-122)}T10:00:00`,
+    acceptedAt: `${d(-121)}T10:30:00`,
+  },
 ];
 
 export const DOCUMENTS: Document[] = [
@@ -546,6 +895,8 @@ export const NOTIFICATIONS: AppNotification[] = [
   { id: 'n_01', type: 'ride', title: 'New ride assigned', body: 'MGY-248103 · Stretcher · Wed 1:00 PM — respond by 12:00 PM today.', at: `${d(-1)}T16:13:00`, read: false, rideId: 'ride_03' },
   { id: 'n_02', type: 'ride', title: 'New ride assigned', body: 'MGY-248101 · Wheelchair · Tue 8:15 AM — respond by 9:00 AM today.', at: `${d(-1)}T16:11:00`, read: false, rideId: 'ride_01' },
   { id: 'n_03', type: 'ride', title: 'New ride assigned', body: 'MGY-248102 · Round trip · Tue 10:30 AM — respond by 10:00 AM today.', at: `${d(-1)}T16:12:00`, read: false, rideId: 'ride_02' },
+  { id: 'n_09', type: 'ride', title: 'New recurring ride request', body: 'RR-2026-058 · N. Abara · Mon, Wed 2:00 PM from Nov 9 — respond by Wed 5:00 PM.', at: `${d(-1)}T16:40:00`, read: false, recurringId: 'rec_03' },
+  { id: 'n_10', type: 'ride', title: 'New recurring ride request', body: 'RR-2026-059 · W. Brennan · Weekdays 7:30 AM round trip from Nov 16 — respond by Thu 5:00 PM.', at: `${d(-1)}T16:52:00`, read: false, recurringId: 'rec_04' },
   { id: 'n_04', type: 'compliance', title: 'PASS certification expired', body: 'Tomas Lindqvist cannot be assigned until a new certificate is uploaded.', at: `${d(-6)}T06:00:00`, read: false },
   { id: 'n_05', type: 'compliance', title: 'Vehicle inspection overdue', body: '2019 Dodge Grand Caravan (ORX 3312) inspection was due 3 days ago.', at: `${d(-3)}T06:00:00`, read: true },
   { id: 'n_06', type: 'pay', title: 'Pay period report approved', body: 'PPR-2026-20 approved by Maguy Accounting. Payment scheduled.', at: `${d(-2)}T14:25:00`, read: true },

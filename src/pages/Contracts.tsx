@@ -1,9 +1,14 @@
+import { useMemo, useState } from 'react';
 import { FileText } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { DemoNote, PageHeader, formatDateLong } from '@/components/shared';
+import { DemoNote, EmptyState, PageHeader, formatDateLong } from '@/components/shared';
+import { DataTable, useTableState, type Column } from '@/components/table/DataTable';
+import { ActiveFilters, FilterMenu, type FilterDef } from '@/components/table/FilterMenu';
+import { BulkActionBar } from '@/components/table/BulkActionBar';
+import { TableActionDropdownItem } from '@/components/table/TableActionDropdown';
 import { useDemo } from '@/demo/store';
 import type { Contract } from '@/demo/types';
 
@@ -15,7 +20,76 @@ const STATUS: Record<Contract['status'], { label: string; variant: 'greenish' | 
 
 export default function Contracts() {
   const { contracts } = useDemo();
+  const [filters, setFilters] = useState<{ search?: string; type?: string; status?: string }>({});
+  const table = useTableState(10);
   const pending = contracts.filter((c) => c.status === 'pending-signature');
+
+  const rows = useMemo(() => {
+    const needle = (filters.search ?? '').trim().toLowerCase();
+    return contracts.filter(
+      (c) =>
+        (!filters.type || c.type === filters.type) &&
+        (!filters.status || c.status === filters.status) &&
+        (!needle || `${c.title} ${c.type}`.toLowerCase().includes(needle)),
+    );
+  }, [contracts, filters]);
+
+  const setFilter = (key: string, val: string | undefined) => {
+    setFilters((f) => ({ ...f, [key]: val }));
+    table.setPage(1);
+  };
+  const filterDefs: FilterDef[] = [
+    { key: 'type', label: 'Type', options: [...new Set(contracts.map((c) => c.type))].map((t) => ({ value: t, label: t })) },
+    { key: 'status', label: 'Status', options: (Object.keys(STATUS) as Contract['status'][]).map((s) => ({ value: s, label: STATUS[s].label })) },
+  ];
+  const chips = Object.entries(filters)
+    .filter(([, v]) => v)
+    .map(([key, value]) => ({
+      key,
+      label: key === 'type' ? 'Type' : key === 'status' ? 'Status' : 'Search',
+      value: key === 'status' ? STATUS[value as Contract['status']].label : value!,
+    }));
+  const stub = (what: string) => toast(`${what} is not part of this prototype`);
+
+  const columns: Column<Contract>[] = [
+    {
+      id: 'title',
+      header: 'Agreement',
+      className: 'whitespace-normal font-medium text-headingBlack',
+      cell: (c) => (
+        <span className="inline-flex items-center gap-2">
+          <FileText className="h-4 w-4 shrink-0 text-primaryGray" /> {c.title}
+        </span>
+      ),
+    },
+    { id: 'type', header: 'Type', cell: (c) => c.type },
+    { id: 'effective', header: 'Effective', cell: (c) => formatDateLong(c.effective) },
+    { id: 'expires', header: 'Expires', cell: (c) => (c.expires ? formatDateLong(c.expires) : 'Ongoing') },
+    { id: 'signed', header: 'Signed', cell: (c) => (c.signedAt ? formatDateLong(c.signedAt) : '—') },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (c) => (
+        <Badge variant={STATUS[c.status].variant} withDot>
+          {STATUS[c.status].label}
+        </Badge>
+      ),
+    },
+    {
+      id: 'action',
+      header: 'Action',
+      cell: (c) =>
+        c.status === 'pending-signature' ? (
+          <Button variant="bluish" onClick={() => stub('E-signature')}>
+            Review &amp; sign
+          </Button>
+        ) : (
+          <Button variant="outline" onClick={() => stub('PDF viewer')}>
+            View PDF
+          </Button>
+        ),
+    },
+  ];
 
   return (
     <>
@@ -31,50 +105,39 @@ export default function Contracts() {
         </div>
       )}
       <Card className="p-0 lg:p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Agreement</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Effective</TableHead>
-              <TableHead>Expires</TableHead>
-              <TableHead>Signed</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {contracts.map((c) => (
-              <TableRow key={c.id} className="text-xs md:text-sm">
-                <TableCell className="font-medium text-headingBlack">
-                  <span className="inline-flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-primaryGray" /> {c.title}
-                  </span>
-                </TableCell>
-                <TableCell className="whitespace-nowrap">{c.type}</TableCell>
-                <TableCell className="whitespace-nowrap">{formatDateLong(c.effective)}</TableCell>
-                <TableCell className="whitespace-nowrap">{c.expires ? formatDateLong(c.expires) : 'Ongoing'}</TableCell>
-                <TableCell className="whitespace-nowrap">{c.signedAt ? formatDateLong(c.signedAt) : '—'}</TableCell>
-                <TableCell>
-                  <Badge variant={STATUS[c.status].variant} withDot>
-                    {STATUS[c.status].label}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {c.status === 'pending-signature' ? (
-                    <Button variant="bluish" disabled>
-                      Review &amp; sign
-                    </Button>
-                  ) : (
-                    <Button variant="outline" disabled>
-                      View PDF
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+          <h2 className="card-title text-headingBlack">Agreements</h2>
+          <div className="lg:w-[420px]">
+            <FilterMenu
+              search={filters.search}
+              onSearch={(q) => setFilter('search', q || undefined)}
+              searchPlaceholder="Search agreement"
+              filters={filterDefs}
+              value={filters}
+              onChange={setFilter}
+            />
+          </div>
+        </div>
+        <ActiveFilters chips={chips} onRemove={(k) => setFilter(k, undefined)} onClearAll={() => setFilters({})} className="border-t border-[#E6EBF3] px-4 py-3 lg:px-6" />
+        <BulkActionBar count={table.selected.size} onClear={table.clearSelection}>
+          <Button variant="outline" className="h-8" onClick={() => stub('Download selected')}>
+            Download {table.selected.size}
+          </Button>
+        </BulkActionBar>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(c) => c.id}
+          table={table}
+          actions={(c) => (
+            <>
+              <TableActionDropdownItem label="View" displayLabel="View PDF" onSelect={() => stub('PDF viewer')} />
+              <TableActionDropdownItem label="Download" onSelect={() => stub('Download')} />
+              {c.status === 'pending-signature' && <TableActionDropdownItem label="Sign" displayLabel="Review & Sign" onSelect={() => stub('E-signature')} />}
+            </>
+          )}
+          empty={<EmptyState title="No agreements match" />}
+        />
       </Card>
     </>
   );

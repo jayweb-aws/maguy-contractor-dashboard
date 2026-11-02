@@ -14,6 +14,7 @@ import {
 } from '@/components/shared';
 import { AssignDriverSelect, RejectDialog, RideRowActions } from '@/components/ride-actions';
 import { RideDetailsSheet } from '@/components/RideDetailsSheet';
+import { notificationLink } from '@/pages/Notifications';
 import { useDemo } from '@/demo/store';
 import {
   ACTIVE_STATUSES,
@@ -78,14 +79,14 @@ export default function Dashboard() {
           hint="Respond before the deadline"
           icon={<Clock className="h-5 w-5" />}
           tone={counts.pending > 0 ? 'warning' : 'default'}
-          to="/rides?tab=pending"
+          to="/schedules/ride-request"
         />
         <StatCard
           label="Accepted · needs driver"
           value={needsDriver}
           hint={`${counts.assigned} assigned · ${counts.inProgress} in progress`}
           icon={<Users className="h-5 w-5" />}
-          to="/rides?tab=accepted"
+          to="/dispatch?tab=open-runs"
         />
         <StatCard
           label="Completed this period"
@@ -101,7 +102,7 @@ export default function Dashboard() {
           hint={`${counts.rejected} rejected by you`}
           icon={<XCircle className="h-5 w-5" />}
           tone={counts.rejected > 0 ? 'danger' : 'default'}
-          to="/rides?tab=rejected"
+          to="/dispatch?tab=canceled"
         />
       </div>
 
@@ -117,7 +118,7 @@ export default function Dashboard() {
           }
           action={
             <Button variant="link" asChild>
-              <Link to="/rides?tab=pending">View all</Link>
+              <Link to="/schedules/ride-request">View all</Link>
             </Button>
           }
           bodyClassName="p-0"
@@ -192,7 +193,7 @@ export default function Dashboard() {
               {recent.map((n) => (
                 <li key={n.id}>
                   <Link
-                    to={n.rideId ? `/rides?ride=${n.rideId}` : '/notifications'}
+                    to={notificationLink(n) ?? '/notifications'}
                     onClick={() => markRead(n.id)}
                     className="flex gap-3 px-4 py-3 hover:bg-gray-50"
                   >
@@ -220,7 +221,7 @@ export default function Dashboard() {
           title="Today's schedule"
           action={
             <Button variant="link" asChild>
-              <Link to="/rides">Open dispatch board</Link>
+              <Link to="/dispatch">Open dispatch board</Link>
             </Button>
           }
           bodyClassName="p-0"

@@ -11,6 +11,7 @@ import {
   NOTIFICATIONS,
   NOW_ISO,
   PAY_PERIODS,
+  RECURRING,
   RIDES,
   TODAY,
   VEHICLES,
@@ -22,6 +23,7 @@ import type {
   Document,
   Driver,
   PayPeriod,
+  RecurringRide,
   Ride,
   Vehicle,
 } from './types';
@@ -40,6 +42,7 @@ interface DemoState {
   today: string;
   contractor: Contractor;
   rides: Ride[];
+  recurring: RecurringRide[];
   drivers: Driver[];
   vehicles: Vehicle[];
   documents: Document[];
@@ -51,6 +54,7 @@ interface DemoState {
   driverById: (id?: string) => Driver | undefined;
   vehicleById: (id?: string) => Vehicle | undefined;
   rideById: (id?: string) => Ride | undefined;
+  recurringById: (id?: string) => RecurringRide | undefined;
   /* ride actions */
   accept: (rideId: string) => void;
   reject: (rideId: string, reason: string) => void;
@@ -58,11 +62,20 @@ interface DemoState {
   rejectAllPending: (reason: string) => void;
   assign: (rideId: string, driverId: string) => void;
   unassign: (rideId: string) => void;
+  /* bulk (checkbox selection) */
+  acceptMany: (rideIds: string[]) => void;
+  rejectMany: (rideIds: string[], reason: string) => void;
+  assignMany: (rideIds: string[], driverId: string) => void;
+  /* recurring series */
+  acceptRecurring: (id: string) => void;
+  rejectRecurring: (id: string, reason: string) => void;
+  assignRecurringDriver: (id: string, driverId: string | null) => void;
   /* drivers */
   addDriver: (input: NewDriverInput) => Driver;
   setDriverStatus: (driverId: string, status: Driver['status']) => void;
   /* notifications */
   markRead: (id: string) => void;
+  markReadMany: (ids: string[]) => void;
   markAllRead: () => void;
   /* documents */
   markDocumentUploaded: (docId: string) => void;
@@ -74,9 +87,10 @@ const Ctx = createContext<DemoState | null>(null);
 
 /* Demo state survives a reload within the tab (sessionStorage) so a reviewer can refresh
    or deep-link without losing what they just did. "Reset demo data" clears it. */
-const STORAGE_KEY = 'maguy-contractor-demo-v1';
+const STORAGE_KEY = 'maguy-contractor-demo-v2';
 interface Persisted {
   rides: Ride[];
+  recurring: RecurringRide[];
   drivers: Driver[];
   documents: Document[];
   notifications: AppNotification[];
@@ -100,18 +114,20 @@ function savePersisted(p: Persisted) {
 export function DemoProvider({ children }: { children: ReactNode }) {
   const persisted = useMemo(loadPersisted, []);
   const [rides, setRides] = useState<Ride[]>(persisted?.rides ?? RIDES);
+  const [recurring, setRecurring] = useState<RecurringRide[]>(persisted?.recurring ?? RECURRING);
   const [drivers, setDrivers] = useState<Driver[]>(persisted?.drivers ?? DRIVERS);
   const [vehicles] = useState<Vehicle[]>(VEHICLES);
   const [documents, setDocuments] = useState<Document[]>(persisted?.documents ?? DOCUMENTS);
   const [notifications, setNotifications] = useState<AppNotification[]>(persisted?.notifications ?? NOTIFICATIONS);
 
   useEffect(() => {
-    savePersisted({ rides, drivers, documents, notifications });
-  }, [rides, drivers, documents, notifications]);
+    savePersisted({ rides, recurring, drivers, documents, notifications });
+  }, [rides, recurring, drivers, documents, notifications]);
 
   const driverById = useCallback((id?: string) => drivers.find((d) => d.id === id), [drivers]);
   const vehicleById = useCallback((id?: string) => vehicles.find((v) => v.id === id), [vehicles]);
   const rideById = useCallback((id?: string) => rides.find((r) => r.id === id), [rides]);
+  const recurringById = useCallback((id?: string) => recurring.find((s) => s.id === id), [recurring]);
 
   const pushNotification = useCallback((n: Omit<AppNotification, 'id' | 'at' | 'read'>) => {
     setNotifications((prev) => [
@@ -183,6 +199,96 @@ export function DemoProvider({ children }: { children: ReactNode }) {
     toast('Driver removed — ride is back to Accepted.');
   }, []);
 
+  /* ---- bulk actions from checkbox selection ---- */
+  const acceptMany = useCallback(
+    (rideIds: string[]) => {
+      const n = rides.filter((r) => rideIds.includes(r.id) && L.canAccept(r)).length;
+      if (n === 0) {
+        toast.error('None of the selected rides are pending.');
+        return;
+      }
+      setRides((prev) => L.acceptMany(prev, rideIds, NOW_ISO));
+      toast.success(`${n} ride${n === 1 ? '' : 's'} accepted`);
+    },
+    [rides],
+  );
+
+  const rejectMany = useCallback(
+    (rideIds: string[], reason: string) => {
+      const n = rides.filter((r) => rideIds.includes(r.id) && L.canReject(r)).length;
+      if (n === 0 || !reason.trim()) return;
+      setRides((prev) => L.rejectMany(prev, rideIds, reason, NOW_ISO));
+      toast(`${n} ride${n === 1 ? '' : 's'} rejected`, { description: 'Maguy dispatch has been notified.' });
+    },
+    [rides],
+  );
+
+  const assignMany = useCallback(
+    (rideIds: string[], driverId: string) => {
+      const driver = drivers.find((d) => d.id === driverId);
+      if (!driver) return;
+      if (!L.driverCanBeAssigned(driver)) {
+        toast.error(`${L.fullName(driver)} has an expired compliance item and cannot be assigned.`);
+        return;
+      }
+      const n = rides.filter((r) => rideIds.includes(r.id) && L.canAssignDriver(r)).length;
+      if (n === 0) {
+        toast.error('Select accepted rides to assign a driver.');
+        return;
+      }
+      setRides((prev) => L.assignMany(prev, rideIds, driver));
+      toast.success(`${L.fullName(driver)} assigned to ${n} ride${n === 1 ? '' : 's'}`);
+    },
+    [drivers, rides],
+  );
+
+  /* ---- recurring series ---- */
+  const acceptRecurring = useCallback(
+    (id: string) => {
+      setRecurring((prev) => prev.map((s) => (s.id === id ? L.acceptRecurring(s, NOW_ISO) : s)));
+      const s = recurring.find((x) => x.id === id);
+      toast.success(`Recurring ride ${s?.requestId ?? ''} accepted`, {
+        description: 'Occurrences now appear on your Schedule and Calendar. Assign a default driver.',
+      });
+    },
+    [recurring],
+  );
+
+  const rejectRecurring = useCallback(
+    (id: string, reason: string) => {
+      if (!reason.trim()) {
+        toast.error('A reason is required to reject a recurring ride.');
+        return;
+      }
+      setRecurring((prev) => prev.map((s) => (s.id === id ? L.rejectRecurring(s, reason, NOW_ISO) : s)));
+      const s = recurring.find((x) => x.id === id);
+      toast(`Recurring ride ${s?.requestId ?? ''} rejected`, {
+        description: 'Maguy dispatch has been notified and will reassign the series.',
+      });
+    },
+    [recurring],
+  );
+
+  const assignRecurringDriver = useCallback(
+    (id: string, driverId: string | null) => {
+      if (driverId === null) {
+        setRecurring((prev) => prev.map((s) => (s.id === id ? L.unassignRecurringDriver(s) : s)));
+        toast('Default driver removed from the series.');
+        return;
+      }
+      const driver = drivers.find((d) => d.id === driverId);
+      if (!driver) return;
+      if (!L.driverCanBeAssigned(driver)) {
+        toast.error(`${L.fullName(driver)} has an expired compliance item and cannot be assigned.`);
+        return;
+      }
+      setRecurring((prev) => prev.map((s) => (s.id === id ? L.assignRecurringDriver(s, driver) : s)));
+      const s = recurring.find((x) => x.id === id);
+      toast.success(`${L.fullName(driver)} is the default driver for ${s?.requestId ?? 'the series'}`);
+    },
+    [drivers, recurring],
+  );
+
   const addDriver = useCallback(
     (input: NewDriverInput): Driver => {
       const n = drivers.length + 1;
@@ -225,6 +331,10 @@ export function DemoProvider({ children }: { children: ReactNode }) {
 
   const markRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  }, []);
+  const markReadMany = useCallback((ids: string[]) => {
+    const set = new Set(ids);
+    setNotifications((prev) => prev.map((n) => (set.has(n.id) ? { ...n, read: true } : n)));
   }, []);
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
@@ -272,6 +382,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     setRides(RIDES);
+    setRecurring(RECURRING);
     setDrivers(DRIVERS);
     setDocuments(DOCUMENTS);
     setNotifications(NOTIFICATIONS);
@@ -283,6 +394,7 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       today: TODAY,
       contractor: CONTRACTOR,
       rides,
+      recurring,
       drivers,
       vehicles,
       documents,
@@ -293,21 +405,30 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       driverById,
       vehicleById,
       rideById,
+      recurringById,
       accept,
       reject,
       acceptAllPending,
       rejectAllPending,
       assign,
       unassign,
+      acceptMany,
+      rejectMany,
+      assignMany,
+      acceptRecurring,
+      rejectRecurring,
+      assignRecurringDriver,
       addDriver,
       setDriverStatus,
       markRead,
+      markReadMany,
       markAllRead,
       markDocumentUploaded,
       resetDemo,
     }),
     [
       rides,
+      recurring,
       drivers,
       vehicles,
       documents,
@@ -315,15 +436,23 @@ export function DemoProvider({ children }: { children: ReactNode }) {
       driverById,
       vehicleById,
       rideById,
+      recurringById,
       accept,
       reject,
       acceptAllPending,
       rejectAllPending,
       assign,
       unassign,
+      acceptMany,
+      rejectMany,
+      assignMany,
+      acceptRecurring,
+      rejectRecurring,
+      assignRecurringDriver,
       addDriver,
       setDriverStatus,
       markRead,
+      markReadMany,
       markAllRead,
       markDocumentUploaded,
       resetDemo,

@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { TableActionDropdownItem } from '@/components/table/TableActionDropdown';
 import { useDemo } from '@/demo/store';
 import {
   availableDrivers,
@@ -171,6 +172,39 @@ export function AssignDriverSelect({ ride, size = 'default' }: { ride: Ride; siz
         )}
       </SelectContent>
     </Select>
+  );
+}
+
+/** Items for the three-dot menu on any ride row. The reject dialog and the details drawer live
+ *  on the page (a dialog mounted inside a closing menu would unmount), so they are callbacks. */
+export function RideMenuItems({
+  ride,
+  onView,
+  onReject,
+}: {
+  ride: Ride;
+  onView: (rideId: string) => void;
+  onReject: (ride: Ride) => void;
+}) {
+  const { accept, unassign } = useDemo();
+  const defer = (fn: () => void) => setTimeout(fn, 0);
+  return (
+    <>
+      <TableActionDropdownItem label="View" onSelect={() => defer(() => onView(ride.id))} />
+      {canAccept(ride) && <TableActionDropdownItem label="Accept" onSelect={() => accept(ride.id)} />}
+      {canAssignDriver(ride) && !ride.driverId && (
+        <TableActionDropdownItem label="Assign" displayLabel="Assign Driver" onSelect={() => defer(() => onView(ride.id))} />
+      )}
+      {canAssignDriver(ride) && ride.driverId && (
+        <TableActionDropdownItem label="Reassign" displayLabel="Change Driver" onSelect={() => defer(() => onView(ride.id))} />
+      )}
+      {ride.status === 'assigned' && (
+        <TableActionDropdownItem label="Unassign" displayLabel="Remove Driver" onSelect={() => unassign(ride.id)} />
+      )}
+      {canReject(ride) && (
+        <TableActionDropdownItem label="Reject" destructive onSelect={() => defer(() => onReject(ride))} />
+      )}
+    </>
   );
 }
 

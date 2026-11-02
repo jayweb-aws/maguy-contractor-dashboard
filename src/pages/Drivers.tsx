@@ -1,6 +1,7 @@
 /* My Drivers — Medtransport contractor "employees" table plus Add Driver and a detail drawer. */
 import { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -17,9 +18,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Switch } from '@/components/ui/switch';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   ComplianceBadge,
+  EmptyState,
   KeyValue,
   PageHeader,
   RideStatusBadge,
@@ -27,9 +28,13 @@ import {
   formatDate,
   formatDateLong,
 } from '@/components/shared';
+import { DataTable, useTableState, type Column } from '@/components/table/DataTable';
+import { ActiveFilters, FilterMenu, type FilterDef } from '@/components/table/FilterMenu';
+import { BulkActionBar } from '@/components/table/BulkActionBar';
+import { TableActionDropdownItem } from '@/components/table/TableActionDropdown';
 import { useDemo, type NewDriverInput } from '@/demo/store';
-import { ACTIVE_STATUSES, formatTime12, fullName, worstCompliance } from '@/demo/logic';
-import type { Driver } from '@/demo/types';
+import { ACTIVE_STATUSES, COMPLIANCE_LABEL, formatTime12, fullName, worstCompliance } from '@/demo/logic';
+import type { ComplianceState, Driver } from '@/demo/types';
 
 const STATUS_LABEL: Record<Driver['status'], string> = {
   active: 'Active',
@@ -46,6 +51,8 @@ export default function Drivers() {
   const { drivers, rides, vehicles, vehicleById, today, addDriver, setDriverStatus } = useDemo();
   const [adding, setAdding] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  const [filters, setFilters] = useState<{ search?: string; status?: string; compliance?: string }>({});
+  const table = useTableState(10);
   const driver = drivers.find((d) => d.id === selected);
 
   const active = drivers.filter((d) => d.status === 'active').length;
@@ -54,6 +61,76 @@ export default function Drivers() {
     () => new Set(rides.filter((r) => r.date === today && ACTIVE_STATUSES.includes(r.status)).map((r) => r.driverId)).size,
     [rides, today],
   );
+
+  const rows = useMemo(() => {
+    const needle = (filters.search ?? '').trim().toLowerCase();
+    return drivers.filter((d) => {
+      if (filters.status && d.status !== filters.status) return false;
+      if (filters.compliance && worstCompliance(d.compliance) !== filters.compliance) return false;
+      if (needle && !`${fullName(d)} ${d.employeeId} ${d.phone} ${d.email}`.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [drivers, filters]);
+
+  const setFilter = (key: string, val: string | undefined) => {
+    setFilters((f) => ({ ...f, [key]: val }));
+    table.setPage(1);
+  };
+  const filterDefs: FilterDef[] = [
+    { key: 'status', label: 'Status', options: (Object.keys(STATUS_LABEL) as Driver['status'][]).map((s) => ({ value: s, label: STATUS_LABEL[s] })) },
+    {
+      key: 'compliance',
+      label: 'Compliance',
+      options: (Object.keys(COMPLIANCE_LABEL) as ComplianceState[]).map((s) => ({ value: s, label: COMPLIANCE_LABEL[s] })),
+    },
+  ];
+  const chips = Object.entries(filters)
+    .filter(([, v]) => v)
+    .map(([key, value]) => ({
+      key,
+      label: key === 'status' ? 'Status' : key === 'compliance' ? 'Compliance' : 'Search',
+      value:
+        key === 'status' ? STATUS_LABEL[value as Driver['status']] : key === 'compliance' ? COMPLIANCE_LABEL[value as ComplianceState] : value!,
+    }));
+
+  const columns: Column<Driver>[] = [
+    { id: 'employeeId', header: 'Employee ID', className: 'text-primaryGray', cell: (d) => d.employeeId },
+    {
+      id: 'name',
+      header: 'Employee Name',
+      cell: (d) => (
+        <button className="font-medium text-primary hover:underline" onClick={() => setSelected(d.id)}>
+          {fullName(d)}
+        </button>
+      ),
+    },
+    { id: 'role', header: 'Role', cell: (d) => d.role },
+    { id: 'phone', header: 'Phone', cell: (d) => d.phone },
+    {
+      id: 'vehicle',
+      header: 'Vehicle',
+      cell: (d) => {
+        const veh = vehicleById(d.vehicleId);
+        return veh ? `${veh.plate} · ${veh.type}` : <span className="text-primaryGray">Unassigned</span>;
+      },
+    },
+    { id: 'hire', header: 'Hire Date', cell: (d) => formatDateLong(d.hireDate) },
+    { id: 'compliance', header: 'Compliance', cell: (d) => <ComplianceBadge state={worstCompliance(d.compliance)} /> },
+    { id: 'status', header: 'Status', cell: (d) => <Badge variant={STATUS_VARIANT[d.status]}>{STATUS_LABEL[d.status]}</Badge> },
+    {
+      id: 'today',
+      header: 'Rides today',
+      headClassName: 'text-right',
+      className: 'text-right',
+      cell: (d) => rides.filter((r) => r.driverId === d.id && r.date === today && r.status !== 'cancelled').length,
+    },
+  ];
+
+  const bulkStatus = (status: Driver['status']) => {
+    table.selected.forEach((id) => setDriverStatus(id, status));
+    toast.success(`${table.selected.size} driver${table.selected.size === 1 ? '' : 's'} set to ${STATUS_LABEL[status]}`);
+    table.clearSelection();
+  };
 
   return (
     <>
@@ -75,44 +152,47 @@ export default function Drivers() {
       </div>
 
       <Card className="mt-4 p-0 lg:p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="whitespace-nowrap">Employee ID</TableHead>
-              <TableHead className="whitespace-nowrap">Employee Name</TableHead>
-              <TableHead>Role</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Vehicle</TableHead>
-              <TableHead className="whitespace-nowrap">Hire Date</TableHead>
-              <TableHead>Compliance</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Rides today</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {drivers.map((d) => {
-              const veh = vehicleById(d.vehicleId);
-              const todays = rides.filter((r) => r.driverId === d.id && r.date === today && r.status !== 'cancelled').length;
-              return (
-                <TableRow key={d.id} className="cursor-pointer text-xs md:text-sm" onClick={() => setSelected(d.id)}>
-                  <TableCell className="whitespace-nowrap text-primaryGray">{d.employeeId}</TableCell>
-                  <TableCell className="whitespace-nowrap font-medium text-primary">{fullName(d)}</TableCell>
-                  <TableCell className="whitespace-nowrap">{d.role}</TableCell>
-                  <TableCell className="whitespace-nowrap">{d.phone}</TableCell>
-                  <TableCell className="whitespace-nowrap">{veh ? `${veh.plate} · ${veh.type}` : <span className="text-primaryGray">Unassigned</span>}</TableCell>
-                  <TableCell className="whitespace-nowrap">{formatDateLong(d.hireDate)}</TableCell>
-                  <TableCell>
-                    <ComplianceBadge state={worstCompliance(d.compliance)} />
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={STATUS_VARIANT[d.status]}>{STATUS_LABEL[d.status]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right">{todays}</TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between lg:px-6">
+          <h2 className="card-title text-headingBlack">Drivers</h2>
+          <div className="lg:w-[420px]">
+            <FilterMenu
+              search={filters.search}
+              onSearch={(q) => setFilter('search', q || undefined)}
+              searchPlaceholder="Search name, ID, phone"
+              filters={filterDefs}
+              value={filters}
+              onChange={setFilter}
+            />
+          </div>
+        </div>
+        <ActiveFilters chips={chips} onRemove={(k) => setFilter(k, undefined)} onClearAll={() => setFilters({})} className="border-t border-[#E6EBF3] px-4 py-3 lg:px-6" />
+        <BulkActionBar count={table.selected.size} onClear={table.clearSelection}>
+          <Button variant="greenish" className="h-8" onClick={() => bulkStatus('active')}>
+            Set Active
+          </Button>
+          <Button variant="outline" className="h-8" onClick={() => bulkStatus('inactive')}>
+            Set Inactive
+          </Button>
+        </BulkActionBar>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          rowKey={(d) => d.id}
+          table={table}
+          onRowClick={(d) => setSelected(d.id)}
+          actions={(d) => (
+            <>
+              <TableActionDropdownItem label="View" onSelect={() => setTimeout(() => setSelected(d.id), 0)} />
+              <TableActionDropdownItem label="Documents" displayLabel="Compliance Documents" link="/documents?tab=driver" />
+              {d.status === 'active' ? (
+                <TableActionDropdownItem label="Cancel" displayLabel="Set Inactive" onSelect={() => setDriverStatus(d.id, 'inactive')} />
+              ) : (
+                <TableActionDropdownItem label="Approve" displayLabel="Set Active" onSelect={() => setDriverStatus(d.id, 'active')} />
+              )}
+            </>
+          )}
+          empty={<EmptyState title="No drivers match" />}
+        />
       </Card>
 
       <AddDriverDialog open={adding} onOpenChange={setAdding} onSave={addDriver} vehicles={vehicles.filter((v) => !drivers.some((d) => d.vehicleId === v.id))} />
@@ -134,10 +214,7 @@ export default function Drivers() {
                 <div className="grid grid-cols-2 gap-3">
                   <KeyValue label="Phone" value={driver.phone} />
                   <KeyValue label="Email" value={<span className="break-all">{driver.email}</span>} />
-                  <KeyValue
-                    label="Vehicle"
-                    value={vehicleById(driver.vehicleId)?.name ?? <span className="text-primaryGray">Unassigned</span>}
-                  />
+                  <KeyValue label="Vehicle" value={vehicleById(driver.vehicleId)?.name ?? <span className="text-primaryGray">Unassigned</span>} />
                   <div className="flex flex-col gap-1">
                     <span className="text-xs text-primaryGray">Active for dispatch</span>
                     <div className="flex items-center gap-2">
